@@ -1,6 +1,6 @@
 (library
  (name kali)
- (libraries core))
+ (libraries core llvm))
 
 (menhir
  (modules parser))
