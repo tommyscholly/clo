@@ -1,4 +1,7 @@
 (executable
  (public_name kali)
  (name main)
- (libraries kali))
+ (libraries kali cmdliner ppx_deriving.std)
+ (preprocess
+  (pps ppx_deriving.show ppx_deriving_cmdliner)))
+

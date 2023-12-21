@@ -1,30 +1,89 @@
-%token <float> NUMBER
+%{
+  open Ast
+%}
+
+%token <float> FLOAT
+%token <int> INT
 %token <string> IDENT
-%token DEF
-%token EXTERN
-%token ADD
+%token <string> STRING
+%token FN
+%token LET
+%token PRINT
+%token PLUS
 %token MUL
 %token EOF
+%token TRUE
+%token FALSE
 %token LPAREN
 %token RPAREN
+%token LBRACE
+%token RBRACE
 %token COMMA
-%token END
+%token ARROW
+%token COLON
+%token SEMICOLON
+%token EQUAL
 
-%left ADD
+%token TYPE_INT 
+%token TYPE_BOOL
+%token TYPE_VOID
+
+%left PLUS
 %left MUL
 
-%start <Ast.expr option> prog
+%start <Ast.expr list> prog
+
 %%
 
 prog:
-    | v = expr;  EOF { Some v }
-    | EOF { None }
+    | es = list(expr);  EOF { es }
     ;
 
-expr: 
-    | i = NUMBER { Number i }
-    | id = IDENT { Variable id }
-    | e1 = expr; ADD; e2 = expr { Binop (Add, e1, e2) }
-    | e1 = expr; MUL; e2 = expr { Binop (Mul, e1, e2) }
-    | DEF; name = IDENT; LPAREN; args = separated_list(COMMA, IDENT); RPAREN; e = expr; END { Function ( Prototype (name, args), e) }
-    | id = IDENT; LPAREN; args = separated_list(COMMA, expr); RPAREN; { Call (id, args) }
+type_expr:
+    | TYPE_INT { TInt }
+    | TYPE_BOOL { TBool }
+    | TYPE_VOID { TVoid }
+    ;
+
+type_annotation:
+    | COLON; annot=type_expr { annot }
+    ;
+
+param:
+    |  param_name=IDENT; param_type=type_annotation { param_name, param_type }
+    ;
+
+params:
+    | LPAREN; params=separated_list(COMMA,param); RPAREN { params }
+    ;
+
+args:
+    | LPAREN; args=separated_list(COMMA, expr); RPAREN { args }
+    ;
+
+block_expr:
+    | LBRACE; exprs=separated_list(SEMICOLON, expr); RBRACE { exprs }
+    ;
+
+function_defn:
+    | FN; name=IDENT; function_params=params; ARROW; ret_type = option(type_expr); body=block_expr { Function ((name, function_params, ret_type, body), $startpos) }
+    ;
+
+expr:
+    | LPAREN; e=expr RPAREN {e}
+    | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, $startpos) }
+    | LET; id=IDENT; annot=type_annotation; EQUAL; e=expr { Let (id, annot, e, $startpos) }
+    | fn=IDENT; fn_args=args { Call (fn, fn_args, $startpos) }
+    | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN {  Print(str, args, $startpos) }
+    | fn_def=function_defn { fn_def }
+    | id=IDENT { Variable (id, $startpos) }
+    | i=INT { Int i }
+    | f=FLOAT { Float f }
+    | TRUE { Bool true }
+    | FALSE { Bool false }
+    ;
+
+
+%inline bin_op:
+| PLUS { Plus }
+| MUL { Mul }

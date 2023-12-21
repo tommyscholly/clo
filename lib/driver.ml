@@ -1,6 +1,7 @@
-open Core
 open Lexer
 open Lexing
+
+let fprintf = Core.fprintf
 
 let print_position outx lexbuf =
   let pos = lexbuf.lex_curr_p in
@@ -11,7 +12,7 @@ let parse_with_error lexbuf =
   try Parser.prog Lexer.read lexbuf with
   | SyntaxError msg ->
     fprintf stderr "%a: %s\n" print_position lexbuf msg;
-    None
+    exit (-1)
   | Parser.Error ->
     fprintf stderr "%a: syntax error\n" print_position lexbuf;
     exit (-1)
@@ -21,4 +22,16 @@ let parse s =
   let lexbuf = Lexing.from_string s in
   let ast = parse_with_error lexbuf in
   ast
+;;
+
+let gen a =
+  let _ = Codegen.register_extern_functions in
+  let _ = Codegen.codegen_expr a in
+  Llvm.dump_module Codegen.llvm_module
+;;
+
+let top s =
+  let ast = parse s in
+  let _ = List.iter (fun a -> gen a) ast in
+  ()
 ;;
