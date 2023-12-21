@@ -1,0 +1,8 @@
+(library
+ (name kali)
+ (libraries core))
+
+(menhir
+ (modules parser))
+
+(ocamllex lexer)

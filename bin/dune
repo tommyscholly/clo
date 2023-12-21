@@ -1,0 +1,4 @@
+(executable
+ (public_name kali)
+ (name main)
+ (libraries kali))
