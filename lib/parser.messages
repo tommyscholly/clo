@@ -1,0 +1,412 @@
+prog: TYPE_VOID
+##
+## Ends in an error in state: 0.
+##
+## prog' -> . prog [ # ]
+##
+## The known suffix of the stack is as follows:
+##
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: PRINT TYPE_VOID
+##
+## Ends in an error in state: 2.
+##
+## expr -> PRINT . LPAREN STRING option(COMMA) loption(separated_nonempty_list(COMMA,expr)) RPAREN [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## PRINT
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: PRINT LPAREN TYPE_VOID
+##
+## Ends in an error in state: 3.
+##
+## expr -> PRINT LPAREN . STRING option(COMMA) loption(separated_nonempty_list(COMMA,expr)) RPAREN [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## PRINT LPAREN
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: PRINT LPAREN STRING TYPE_VOID
+##
+## Ends in an error in state: 4.
+##
+## expr -> PRINT LPAREN STRING . option(COMMA) loption(separated_nonempty_list(COMMA,expr)) RPAREN [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## PRINT LPAREN STRING
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: PRINT LPAREN STRING COMMA TYPE_VOID
+##
+## Ends in an error in state: 6.
+##
+## expr -> PRINT LPAREN STRING option(COMMA) . loption(separated_nonempty_list(COMMA,expr)) RPAREN [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## PRINT LPAREN STRING option(COMMA)
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: LPAREN TYPE_VOID
+##
+## Ends in an error in state: 7.
+##
+## expr -> LPAREN . expr RPAREN [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: LET TYPE_VOID
+##
+## Ends in an error in state: 8.
+##
+## expr -> LET . IDENT type_annotation EQUAL expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## LET
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: LET IDENT TYPE_VOID
+##
+## Ends in an error in state: 9.
+##
+## expr -> LET IDENT . type_annotation EQUAL expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## LET IDENT
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: LET IDENT COLON TRUE
+##
+## Ends in an error in state: 10.
+##
+## type_annotation -> COLON . type_expr [ RPAREN EQUAL COMMA ]
+##
+## The known suffix of the stack is as follows:
+## COLON
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: LET IDENT COLON TYPE_BOOL TYPE_VOID
+##
+## Ends in an error in state: 15.
+##
+## expr -> LET IDENT type_annotation . EQUAL expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## LET IDENT type_annotation
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: LET IDENT COLON TYPE_BOOL EQUAL TYPE_VOID
+##
+## Ends in an error in state: 16.
+##
+## expr -> LET IDENT type_annotation EQUAL . expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## LET IDENT type_annotation EQUAL
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: IDENT TYPE_VOID
+##
+## Ends in an error in state: 18.
+##
+## expr -> IDENT . args [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+## expr -> IDENT . [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## IDENT
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: IDENT LPAREN TYPE_VOID
+##
+## Ends in an error in state: 19.
+##
+## args -> LPAREN . loption(separated_nonempty_list(COMMA,expr)) RPAREN [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN TYPE_VOID
+##
+## Ends in an error in state: 20.
+##
+## function_defn -> FN . IDENT params ARROW option(type_expr) block_expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## FN
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT TYPE_VOID
+##
+## Ends in an error in state: 21.
+##
+## function_defn -> FN IDENT . params ARROW option(type_expr) block_expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## FN IDENT
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN TYPE_VOID
+##
+## Ends in an error in state: 22.
+##
+## params -> LPAREN . loption(separated_nonempty_list(COMMA,param)) RPAREN [ ARROW ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN IDENT TYPE_VOID
+##
+## Ends in an error in state: 23.
+##
+## param -> IDENT . type_annotation [ RPAREN COMMA ]
+##
+## The known suffix of the stack is as follows:
+## IDENT
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN IDENT COLON TYPE_BOOL TYPE_VOID
+##
+## Ends in an error in state: 26.
+##
+## separated_nonempty_list(COMMA,param) -> param . [ RPAREN ]
+## separated_nonempty_list(COMMA,param) -> param . COMMA separated_nonempty_list(COMMA,param) [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## param
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN IDENT COLON TYPE_BOOL COMMA TYPE_VOID
+##
+## Ends in an error in state: 27.
+##
+## separated_nonempty_list(COMMA,param) -> param COMMA . separated_nonempty_list(COMMA,param) [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## param COMMA
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN RPAREN TYPE_VOID
+##
+## Ends in an error in state: 31.
+##
+## function_defn -> FN IDENT params . ARROW option(type_expr) block_expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## FN IDENT params
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN RPAREN ARROW TRUE
+##
+## Ends in an error in state: 32.
+##
+## function_defn -> FN IDENT params ARROW . option(type_expr) block_expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## FN IDENT params ARROW
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN RPAREN ARROW TYPE_BOOL TYPE_VOID
+##
+## Ends in an error in state: 34.
+##
+## function_defn -> FN IDENT params ARROW option(type_expr) . block_expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## FN IDENT params ARROW option(type_expr)
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN RPAREN ARROW LBRACE TYPE_VOID
+##
+## Ends in an error in state: 35.
+##
+## block_expr -> LBRACE . loption(separated_nonempty_list(SEMICOLON,expr)) RBRACE [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## LBRACE
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN RPAREN ARROW LBRACE FALSE TYPE_VOID
+##
+## Ends in an error in state: 42.
+##
+## expr -> expr . PLUS expr [ SEMICOLON RBRACE PLUS MUL ]
+## expr -> expr . MUL expr [ SEMICOLON RBRACE PLUS MUL ]
+## separated_nonempty_list(SEMICOLON,expr) -> expr . [ RBRACE ]
+## separated_nonempty_list(SEMICOLON,expr) -> expr . SEMICOLON separated_nonempty_list(SEMICOLON,expr) [ RBRACE ]
+##
+## The known suffix of the stack is as follows:
+## expr
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FN IDENT LPAREN RPAREN ARROW LBRACE FALSE SEMICOLON TYPE_VOID
+##
+## Ends in an error in state: 43.
+##
+## separated_nonempty_list(SEMICOLON,expr) -> expr SEMICOLON . separated_nonempty_list(SEMICOLON,expr) [ RBRACE ]
+##
+## The known suffix of the stack is as follows:
+## expr SEMICOLON
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FALSE PLUS TYPE_VOID
+##
+## Ends in an error in state: 45.
+##
+## expr -> expr PLUS . expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## expr PLUS
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FALSE PLUS FALSE TYPE_VOID
+##
+## Ends in an error in state: 46.
+##
+## expr -> expr . PLUS expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+## expr -> expr PLUS expr . [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+## expr -> expr . MUL expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## expr PLUS expr
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FALSE MUL TYPE_VOID
+##
+## Ends in an error in state: 47.
+##
+## expr -> expr MUL . expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## expr MUL
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: IDENT LPAREN FALSE TYPE_VOID
+##
+## Ends in an error in state: 53.
+##
+## expr -> expr . PLUS expr [ RPAREN PLUS MUL COMMA ]
+## expr -> expr . MUL expr [ RPAREN PLUS MUL COMMA ]
+## separated_nonempty_list(COMMA,expr) -> expr . [ RPAREN ]
+## separated_nonempty_list(COMMA,expr) -> expr . COMMA separated_nonempty_list(COMMA,expr) [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## expr
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: IDENT LPAREN FALSE COMMA TYPE_VOID
+##
+## Ends in an error in state: 54.
+##
+## separated_nonempty_list(COMMA,expr) -> expr COMMA . separated_nonempty_list(COMMA,expr) [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## expr COMMA
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: LET IDENT COLON TYPE_BOOL EQUAL FALSE TYPE_VOID
+##
+## Ends in an error in state: 57.
+##
+## expr -> expr . PLUS expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+## expr -> expr . MUL expr [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+## expr -> LET IDENT type_annotation EQUAL expr . [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## LET IDENT type_annotation EQUAL expr
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: LPAREN FALSE TYPE_VOID
+##
+## Ends in an error in state: 58.
+##
+## expr -> LPAREN expr . RPAREN [ TRUE SEMICOLON RPAREN RBRACE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF COMMA ]
+## expr -> expr . PLUS expr [ RPAREN PLUS MUL ]
+## expr -> expr . MUL expr [ RPAREN PLUS MUL ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN expr
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+
+prog: FALSE TYPE_VOID
+##
+## Ends in an error in state: 65.
+##
+## expr -> expr . PLUS expr [ TRUE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF ]
+## expr -> expr . MUL expr [ TRUE PRINT PLUS MUL LPAREN LET INT IDENT FN FLOAT FALSE EOF ]
+## list(expr) -> expr . list(expr) [ EOF ]
+##
+## The known suffix of the stack is as follows:
+## expr
+##
+
+<YOUR SYNTAX ERROR MESSAGE HERE>
+

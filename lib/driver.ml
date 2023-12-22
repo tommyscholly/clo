@@ -9,15 +9,16 @@ let print_position outx lexbuf =
   fprintf outx "%s:%d:%d" pos.pos_fname pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
 ;;
 
-let report_error lexbuf =
+let report_error msg lexbuf =
   let start_pos = lexbuf.lex_start_p in
   let end_pos = lexbuf.lex_curr_p in
   let line_num = start_pos.pos_lnum in
   let start_col = start_pos.pos_cnum - start_pos.pos_bol + 1 in
   let end_col = end_pos.pos_cnum - start_pos.pos_bol + 1 in
   let file_name = end_pos.pos_fname in
-  Printf.printf
-    "File \"%s\", line %d, characters %d-%d:\n"
+  printf
+    "%s: File \"%s\", line %d, characters %d-%d:\n"
+    msg
     file_name
     line_num
     start_col
@@ -36,10 +37,10 @@ let report_error lexbuf =
 let parse_with_error lexbuf =
   try Parser.prog Lexer.read lexbuf with
   | SyntaxError _ ->
-    report_error lexbuf;
+    report_error "Syntax Error:" lexbuf;
     exit (-1)
   | Parser.Error ->
-    report_error lexbuf;
+    report_error "Syntax Error:" lexbuf;
     exit (-1)
 ;;
 
@@ -61,14 +62,39 @@ let parse filename =
   ast
 ;;
 
+let codegen_error_to_message (ety : Codegen.errorty) =
+  match ety with
+  | Call -> "Called function does not exist"
+  | Defn -> "Function define error"
+  | Redef -> "Attempt to redefine function"
+  | UnknownVar -> "Unknown variable referenced"
+  | Args -> "Incorrect arguments"
+  | UnknownType -> "Unknown type referenced"
+  | ReturnType -> "Return type not provided"
+  | NotSupported -> "This is not supported"
+;;
+
 let gen a =
-  let _ = Codegen.register_extern_functions in
-  let _ = Codegen.codegen_expr a in
+  let _ =
+    try Codegen.codegen_expr a with
+    | Codegen.CodegenError (ety, (start_loc, end_loc)) ->
+      let msg = codegen_error_to_message ety in
+      printf
+        "%s %d-%d:%d-%d"
+        msg
+        start_loc.pos_lnum
+        end_loc.pos_lnum
+        start_loc.pos_cnum
+        end_loc.pos_cnum;
+      (* report_error ety loc; *)
+      exit 1
+  in
   Llvm.dump_module Codegen.llvm_module
 ;;
 
 let top filename =
   let ast = parse filename in
+  let _ = Codegen.register_extern_functions () in
   let _ = List.iter (fun a -> gen a) ast in
   ()
 ;;

@@ -1,4 +1,4 @@
-type loc = Lexing.position
+type loc = Lexing.position * Lexing.position (* start, end *)
 
 type bop =
   | Plus
@@ -11,15 +11,15 @@ type type_expr =
   | TInt
   | TString
   | TVoid
-  | TBool 
+  | TBool
   | TCustom of string
 
 type param = string * type_expr
 
 type expr =
   (* variant for numeric literals like "1.0". *)
-  | Int of int 
-  | Float of float 
+  | Int of int
+  | Float of float
   | Bool of bool
   (* variant for referencing a variable, like "a". *)
   | Variable of string * loc
@@ -30,5 +30,6 @@ type expr =
   | Print of string * expr list * loc
   | Let of string * type_expr * expr * loc
   | Function of fndef * loc
+  | Return of expr * loc
 
 and fndef = string * param list * type_expr option * expr list

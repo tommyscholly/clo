@@ -50,7 +50,7 @@ type_annotation:
     ;
 
 param:
-    |  param_name=IDENT; param_type=type_annotation { param_name, param_type }
+    | param_name=IDENT; param_type=type_annotation { param_name, param_type }
     ;
 
 params:
@@ -61,22 +61,30 @@ args:
     | LPAREN; args=separated_list(COMMA, expr); RPAREN { args }
     ;
 
+semi_terminated:
+    | e=expr; SEMICOLON { e }
+    ;
+
 block_expr:
-    | LBRACE; exprs=separated_list(SEMICOLON, expr); RBRACE { exprs }
+    | LBRACE; exprs=list(semi_terminated); RBRACE { exprs }
+    ;
+
+return_type_expr:
+    | ARROW; ret_type=type_expr { ret_type }
     ;
 
 function_defn:
-    | FN; name=IDENT; function_params=params; ARROW; ret_type = option(type_expr); body=block_expr { Function ((name, function_params, ret_type, body), $startpos) }
+    | FN; name=IDENT; function_params=params; ret_type = option(return_type_expr); body=block_expr { Function ((name, function_params, ret_type, body), ($startpos, $endpos)) }
     ;
 
 expr:
     | LPAREN; e=expr RPAREN {e}
-    | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, $startpos) }
-    | LET; id=IDENT; annot=type_annotation; EQUAL; e=expr { Let (id, annot, e, $startpos) }
-    | fn=IDENT; fn_args=args { Call (fn, fn_args, $startpos) }
-    | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN {  Print(str, args, $startpos) }
+    | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, ($startpos, $endpos)) }
+    | LET; id=IDENT; annot=type_annotation; EQUAL; e=expr { Let (id, annot, e, ($startpos, $endpos)) }
+    | fn=IDENT; fn_args=args { Call (fn, fn_args, ($startpos, $endpos)) }
+    | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN; {  Print(str, args, ($startpos, $endpos)) }
     | fn_def=function_defn { fn_def }
-    | id=IDENT { Variable (id, $startpos) }
+    | id=IDENT { Variable (id, ($startpos, $endpos)) }
     | i=INT { Int i }
     | f=FLOAT { Float f }
     | TRUE { Bool true }
