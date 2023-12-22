@@ -1,5 +1,6 @@
 open Lexer
 open Lexing
+open Printf
 
 let fprintf = Core.fprintf
 
@@ -8,18 +9,54 @@ let print_position outx lexbuf =
   fprintf outx "%s:%d:%d" pos.pos_fname pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
 ;;
 
+let report_error lexbuf =
+  let start_pos = lexbuf.lex_start_p in
+  let end_pos = lexbuf.lex_curr_p in
+  let line_num = start_pos.pos_lnum in
+  let start_col = start_pos.pos_cnum - start_pos.pos_bol + 1 in
+  let end_col = end_pos.pos_cnum - start_pos.pos_bol + 1 in
+  let file_name = end_pos.pos_fname in
+  Printf.printf
+    "File \"%s\", line %d, characters %d-%d:\n"
+    file_name
+    line_num
+    start_col
+    end_col;
+  let line_start = start_pos.pos_bol in
+  let line_end = min (Bytes.length lexbuf.lex_buffer) lexbuf.lex_curr_pos in
+  let line =
+    String.sub (Bytes.to_string lexbuf.lex_buffer) line_start (line_end - line_start)
+  in
+  printf "%s\n" line;
+  let padding = String.make (start_col - 1) ' ' in
+  let indicator = String.make (end_col - start_col) '^' in
+  printf "%s%s\n" padding indicator
+;;
+
 let parse_with_error lexbuf =
   try Parser.prog Lexer.read lexbuf with
-  | SyntaxError msg ->
-    fprintf stderr "%a: %s\n" print_position lexbuf msg;
+  | SyntaxError _ ->
+    report_error lexbuf;
     exit (-1)
   | Parser.Error ->
-    fprintf stderr "%a: syntax error\n" print_position lexbuf;
+    report_error lexbuf;
     exit (-1)
 ;;
 
-let parse s =
-  let lexbuf = Lexing.from_string s in
+let get_in_channel name =
+  try
+    let in_channel = open_in name in
+    in_channel
+  with
+  | Sys_error msg ->
+    Printf.eprintf "Error: %s\n" msg;
+    exit 1
+;;
+
+let parse filename =
+  let channel = get_in_channel filename in
+  let lexbuf = Lexing.from_channel channel in
+  Lexing.set_filename lexbuf filename;
   let ast = parse_with_error lexbuf in
   ast
 ;;
@@ -30,8 +67,8 @@ let gen a =
   Llvm.dump_module Codegen.llvm_module
 ;;
 
-let top s =
-  let ast = parse s in
+let top filename =
+  let ast = parse filename in
   let _ = List.iter (fun a -> gen a) ast in
   ()
 ;;
