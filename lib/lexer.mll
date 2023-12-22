@@ -32,6 +32,8 @@ rule read =
   | "print"  { PRINT }
   | "true"   { TRUE }
   | "false"  { FALSE }
+  | "return" { RETURN }
+  | "type"   { TYPE }
   | "void"   { TYPE_VOID }
   | "int"    { TYPE_INT }
   | "bool"   { TYPE_BOOL }

@@ -89,12 +89,13 @@ let gen a =
       (* report_error ety loc; *)
       exit 1
   in
-  Llvm.dump_module Codegen.llvm_module
+  ()
 ;;
 
 let top filename =
   let ast = parse filename in
   let _ = Codegen.register_extern_functions () in
   let _ = List.iter (fun a -> gen a) ast in
+  Llvm.dump_module Codegen.llvm_module;
   ()
 ;;

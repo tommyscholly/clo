@@ -15,6 +15,7 @@ type type_expr =
   | TCustom of string
 
 type param = string * type_expr
+type field = Field of string * type_expr * loc
 
 type expr =
   (* variant for numeric literals like "1.0". *)
@@ -31,5 +32,6 @@ type expr =
   | Let of string * type_expr * expr * loc
   | Function of fndef * loc
   | Return of expr * loc
+  | Struct of string * field list * loc
 
 and fndef = string * param list * type_expr option * expr list

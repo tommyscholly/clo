@@ -14,6 +14,7 @@
 %token EOF
 %token TRUE
 %token FALSE
+%token RETURN
 %token LPAREN
 %token RPAREN
 %token LBRACE
@@ -23,6 +24,8 @@
 %token COLON
 %token SEMICOLON
 %token EQUAL
+
+%token TYPE
 
 %token TYPE_INT 
 %token TYPE_BOOL
@@ -77,6 +80,17 @@ function_defn:
     | FN; name=IDENT; function_params=params; ret_type = option(return_type_expr); body=block_expr { Function ((name, function_params, ret_type, body), ($startpos, $endpos)) }
     ;
 
+struct_field:
+    | name=IDENT; COLON; ty=type_expr; SEMICOLON { Field (name, ty, ($startpos, $endpos)) }
+    ;
+
+struct_expr:
+    | LBRACE; fields=list(struct_field); RBRACE { fields }
+
+type_defn:
+    | TYPE; name=IDENT; body=struct_expr { Struct (name, body, ($startpos, $endpos)) }
+    ;
+
 expr:
     | LPAREN; e=expr RPAREN {e}
     | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, ($startpos, $endpos)) }
@@ -84,11 +98,13 @@ expr:
     | fn=IDENT; fn_args=args { Call (fn, fn_args, ($startpos, $endpos)) }
     | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN; {  Print(str, args, ($startpos, $endpos)) }
     | fn_def=function_defn { fn_def }
+    | type_def=type_defn { type_def }
     | id=IDENT { Variable (id, ($startpos, $endpos)) }
     | i=INT { Int i }
     | f=FLOAT { Float f }
     | TRUE { Bool true }
     | FALSE { Bool false }
+    | RETURN; e=expr { Return (e, ($startpos, $endpos)) }
     ;
 
 

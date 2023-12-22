@@ -21,6 +21,8 @@ let double_type = Llvm.double_type context
 let i32_type = Llvm.i32_type context
 let void_type = Llvm.void_type context
 let bool_type = Llvm.i8_type context
+let struct_type = Llvm.struct_type context
+let named_struct_type = Llvm.named_struct_type context
 
 let ( ++ ) x f =
   f x;
@@ -49,6 +51,10 @@ let rec codegen_expr = function
     (try Hashtbl.find named_values name with
      | Not_found -> raise (CodegenError (UnknownVar, loc)))
   | Ast.Call (callee, args, loc) ->
+    let fn_ty =
+      try Hashtbl.find fn_tys callee with
+      | Not_found -> raise (CodegenError (UnknownVar, loc))
+    in
     let callee =
       match Llvm.lookup_function callee llvm_module with
       | Some c -> c
@@ -59,7 +65,7 @@ let rec codegen_expr = function
     then ()
     else raise (CodegenError (Args, loc));
     let args = Array.of_list (List.map codegen_expr args) in
-    Llvm.build_call (Llvm.double_type context) callee args "calltmp" builder
+    Llvm.build_call fn_ty callee args "calltmp" builder
   | Ast.Function ((name, params, type_expr, body), loc) ->
     codegen_fn name params type_expr body loc
   | Ast.Binop (bop, lhs, rhs, _) ->
@@ -84,9 +90,7 @@ let rec codegen_expr = function
     let str_ptr = Llvm.build_global_stringptr str "format_str" builder in
     let args = List.map (fun e -> codegen_expr e) args in
     let args = Array.of_list (str_ptr :: args) in
-    let call = Llvm.build_call fn_ty fn args "" builder in
-    (* let call = Llvm.build_call fn args "calltmp" builder in *)
-    call
+    Llvm.build_call fn_ty fn args "" builder
   | Ast.Let (name, type_expr, binding, loc) ->
     let bound_expr = codegen_expr binding in
     (* let block = Llvm.insertion_block builder in *)
@@ -100,10 +104,28 @@ let rec codegen_expr = function
     let _ = Llvm.build_store bound_expr var builder in
     Hashtbl.add named_values name bound_expr;
     bound_expr
-  | Ast.Return (_, loc) -> raise (CodegenError (NotSupported, loc))
+  | Ast.Struct (name, fields, _) ->
+    let field_types =
+      List.map
+        (fun f ->
+          let _, ty, l =
+            match f with
+            | Ast.Field (e, ty, l) -> e, ty, l
+          in
+          map_type_def ty l)
+        fields
+      |> Array.of_list
+    in
+    let named_struct = named_struct_type name in
+    Llvm.struct_set_body named_struct field_types false;
+    Llvm.dump_type named_struct;
+    Llvm.const_null named_struct
+  | Ast.Return (e, loc) ->
+    (try codegen_expr e with
+     | CodegenError (_, _) -> raise (CodegenError (ReturnType, loc)))
 
 and codegen_fn name params type_expr body loc =
-  Hashtbl.clear named_values;
+  (* Hashtbl.clear named_values; *)
   let args = Array.of_list params in
   let type_expr =
     match type_expr with
@@ -137,6 +159,7 @@ and codegen_fn name params type_expr body loc =
     (Llvm.params fn);
   let bb = Llvm.append_block context "entry" fn in
   Llvm.position_at_end bb builder;
+  (* Llvm.dump_module llvm_module; *)
   try
     (* ew yuck mutability *)
     let ret_val = ref None in
@@ -157,6 +180,7 @@ and codegen_fn name params type_expr body loc =
          | None -> raise (CodegenError (ReturnType, loc)))
     in
     Llvm_analysis.assert_valid_function fn;
+    Hashtbl.add fn_tys name ft;
     fn
   with
   | e ->
