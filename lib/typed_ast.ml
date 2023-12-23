@@ -1,6 +1,12 @@
 type loc = Ast.loc
 type type_expr = Ast.type_expr
-type type_error_kind = TETypeDefAsValue
+
+type type_error_kind =
+  | TETypeDefAsValue
+  | TETypeRedefine
+  | TEFieldLengthMismatch
+  | TEFieldNonExistant
+  | TETypeConstructWithoutDefine
 
 exception
   TypeError of
@@ -65,7 +71,9 @@ and type_construct =
   | EnumConst
   | StructConst of struct_def
 
-let rec type_of = function
+let defined_structs = Hashtbl.create 10 (* struct_name -> HashTbl<field_name, idx> *)
+
+let type_of = function
   | Int _ -> Ast.TInt
   | Float _ -> Ast.TFloat
   | Bool _ -> Ast.TBool
@@ -80,4 +88,51 @@ let rec type_of = function
   | Let (l, _) -> l.ltype
   | Call (c, _) -> c.ctype
   | Binop (b, _) -> b.btype
+;;
+
+let rec typed_expr (e : Ast.expr) =
+  match e with
+  | Ast.Struct (name, fields, loc) ->
+    let struct_field_tbl =
+      match Hashtbl.find_opt defined_structs name with
+      | Some _ -> raise (TypeError { kind = TETypeRedefine; loc; msg = None })
+      | None -> Hashtbl.create 10
+    in
+    let fields = Array.of_list fields in
+    let field_types = [||] in
+    Array.iteri
+      (fun i f ->
+        let field_name, field_type, loc =
+          match f with
+          | Ast.Field (field_name, field_type, l) -> field_name, field_type, l
+        in
+        Hashtbl.add struct_field_tbl field_name i;
+        Array.set field_types i (field_type, loc))
+      fields;
+    Hashtbl.add defined_structs name struct_field_tbl;
+    TypeDef (StructDef { sname = name; sfields = field_types }, loc)
+  | Ast.StructConstruct (name, fields, loc) ->
+    let struct_field_tbl =
+      try Hashtbl.find defined_structs name with
+      | Not_found ->
+        raise (TypeError { kind = TETypeConstructWithoutDefine; loc; msg = None })
+    in
+    let fields = Array.of_list fields in
+    if Array.length fields != Hashtbl.length struct_field_tbl
+    then raise (TypeError { kind = TEFieldLengthMismatch; loc; msg = None })
+    else ();
+    let mapped_fields = [||] in
+    Array.iter
+      (fun (field_name, field_expr, field_loc) ->
+        let idx =
+          try Hashtbl.find struct_field_tbl field_name with
+          | Not_found ->
+            raise (TypeError { kind = TEFieldNonExistant; loc = field_loc; msg = None })
+        in
+        Array.set mapped_fields idx (typed_expr field_expr, field_loc))
+      fields;
+    TypeConstruct (StructConst { sname = name; sfields = mapped_fields }, loc)
+  | Ast.Int i -> Int i
+  | Ast.Float f -> Float f
+  | _ -> Int 0
 ;;
