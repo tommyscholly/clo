@@ -10,6 +10,7 @@ type type_error_kind =
   | TEVariableNotBound
   | TETypeMismatch
   | TEReturnTypeMismatch
+  | TEFunctionNonExistant
 (* this needs to hold a 'loc list' that points to every return type location *)
 
 exception
@@ -80,6 +81,7 @@ and type_construct =
 let defined_structs = Hashtbl.create 10 (* struct_name -> HashTbl<field_name, idx> *)
 let bound_variables = Hashtbl.create 10
 let string_of_type = Ast.string_of_type
+let defined_functions = Hashtbl.create 10 (* fn_name -> type_expr *)
 
 let type_of = function
   | Int _ -> Ast.TInt
@@ -189,9 +191,29 @@ let rec typed_expr (e : Ast.expr) =
       (* assert that there are no returns if the return type is void *)
       | _ -> List.length returns = 0 (* Util.all_same returns *)
     in
-    if not return_types_match
-    then raise (TypeError { kind = TEReturnTypeMismatch; loc; msg = None })
-    else ();
-    FnDef ({ fnname; fnparams; fnret = List.hd returns; fnexprs }, loc)
-  | _ -> Int 0
+    let fnret =
+      if not return_types_match
+      then raise (TypeError { kind = TEReturnTypeMismatch; loc; msg = None })
+      else (
+        match fntype_opt with
+        | Some ty -> ty
+        | None -> TVoid)
+    in
+    Hashtbl.add defined_functions fnname fnret;
+    FnDef ({ fnname; fnparams; fnret; fnexprs }, loc)
+  | Call (fnname, args, loc) ->
+    let cargs = List.map (fun e -> typed_expr e) args in
+    let ctype =
+      try Hashtbl.find defined_functions fnname with
+      | Not_found -> raise (TypeError { kind = TEFunctionNonExistant; msg = None; loc })
+    in
+    Call ({ cname = fnname; cargs; ctype }, loc)
+  | Print (str, args, loc) ->
+    let cargs = List.map (fun e -> typed_expr e) args in
+    let cargs = Str str :: cargs in
+    Call ({ cname = "print"; cargs; ctype = TVoid }, loc)
+  | Return (expr, loc) ->
+    let texpr = typed_expr expr in
+    let ty = type_of texpr in
+    Return (texpr, ty, loc)
 ;;
