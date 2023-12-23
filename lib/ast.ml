@@ -15,6 +15,15 @@ type type_expr =
   | TBool
   | TCustom of string
 
+let string_of_type = function
+  | TInt -> "int"
+  | TFloat -> "float"
+  | TStr -> "str"
+  | TVoid -> "void"
+  | TBool -> "bool"
+  | TCustom s -> s
+;;
+
 type param = string * type_expr
 type field = Field of string * type_expr * loc
 

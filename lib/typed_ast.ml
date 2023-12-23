@@ -7,6 +7,10 @@ type type_error_kind =
   | TEFieldLengthMismatch
   | TEFieldNonExistant
   | TETypeConstructWithoutDefine
+  | TEVariableNotBound
+  | TETypeMismatch
+  | TEReturnTypeMismatch
+(* this needs to hold a 'loc list' that points to every return type location *)
 
 exception
   TypeError of
@@ -25,6 +29,7 @@ type expr =
   | Binop of bop * loc (* we validate the *)
   | Let of let_expr * loc
   | Return of expr * type_expr * loc
+  | FnDef of fn_def * loc
   | TypeDef of type_def * loc
   | TypeConstruct of
       type_construct * loc (* something like thing = StructName { field_one: string} *)
@@ -45,7 +50,7 @@ and bop =
 and let_expr =
   { lname : string
   ; ltype : type_expr
-  ; binding : expr
+  ; lbinding : expr
   }
 
 and fnparam = string * type_expr
@@ -54,6 +59,7 @@ and fn_def =
   { fnname : string
   ; fnparams : fnparam list
   ; fnret : type_expr (* we resolve and type check this *)
+  ; fnexprs : expr list
   }
 
 and type_def =
@@ -72,6 +78,8 @@ and type_construct =
   | StructConst of struct_def
 
 let defined_structs = Hashtbl.create 10 (* struct_name -> HashTbl<field_name, idx> *)
+let bound_variables = Hashtbl.create 10
+let string_of_type = Ast.string_of_type
 
 let type_of = function
   | Int _ -> Ast.TInt
@@ -134,5 +142,56 @@ let rec typed_expr (e : Ast.expr) =
     TypeConstruct (StructConst { sname = name; sfields = mapped_fields }, loc)
   | Ast.Int i -> Int i
   | Ast.Float f -> Float f
+  | Ast.Bool b -> Bool b
+  | Ast.Variable (var_name, loc) ->
+    let bound_var =
+      try Hashtbl.find bound_variables var_name with
+      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+    in
+    Variable (var_name, type_of bound_var, loc)
+  | Ast.Let (name, ty, expr, loc) ->
+    Let ({ lname = name; ltype = ty; lbinding = typed_expr expr }, loc)
+  | Ast.Binop (bop, lhs, rhs, loc) ->
+    let lhs = typed_expr lhs in
+    let rhs = typed_expr rhs in
+    let lhs_type = type_of lhs in
+    let rhs_type = type_of rhs in
+    if lhs_type != rhs_type
+    then
+      raise
+        (TypeError
+           { kind = TETypeMismatch
+           ; loc
+           ; msg =
+               Some
+                 (Format.sprintf
+                    "Left hand %s and right hand %s mismatch"
+                    (string_of_type lhs_type)
+                    (string_of_type rhs_type))
+           })
+    else ();
+    Binop ({ bop; lhs; rhs; btype = lhs_type }, loc)
+  | Function ((fnname, fnparams, fntype_opt, fnexprs), loc) ->
+    let fnexprs = List.map typed_expr fnexprs in
+    (* list of types of all the returns in the function *)
+    (* need to extract the locations as well for better error reporting *)
+    let returns =
+      List.filter_map
+        (fun e ->
+          match e with
+          | Return (_, ty, _) -> Some ty
+          | _ -> None)
+        fnexprs
+    in
+    let return_types_match =
+      match fntype_opt with
+      | Some ty -> List.for_all (fun ty' -> ty = ty') returns
+      (* assert that there are no returns if the return type is void *)
+      | _ -> List.length returns = 0 (* Util.all_same returns *)
+    in
+    if not return_types_match
+    then raise (TypeError { kind = TEReturnTypeMismatch; loc; msg = None })
+    else ();
+    FnDef ({ fnname; fnparams; fnret = List.hd returns; fnexprs }, loc)
   | _ -> Int 0
 ;;
