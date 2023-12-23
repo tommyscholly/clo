@@ -10,7 +10,7 @@ type bop =
 type type_expr =
   | TInt
   | TFloat
-  | TString
+  | TStr
   | TVoid
   | TBool
   | TCustom of string
