@@ -74,9 +74,16 @@ and struct_def =
   ; sfields : field array
   }
 
+and construct_field = expr * loc
+
+and struct_construct =
+  { scname : string
+  ; scfields : construct_field array
+  }
+
 and type_construct =
   | EnumConst
-  | StructConst of struct_def
+  | StructConst of struct_construct
 
 let defined_structs = Hashtbl.create 10 (* struct_name -> HashTbl<field_name, idx> *)
 let bound_variables = Hashtbl.create 10
@@ -92,12 +99,13 @@ let type_of = function
   | TypeConstruct (c, _) ->
     (match c with
      | EnumConst -> Ast.TCustom "Enum"
-     | StructConst s -> TCustom s.sname)
+     | StructConst s -> TCustom s.scname)
   | TypeDef (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
   | Variable (_, ty, _) -> ty
   | Let (l, _) -> l.ltype
   | Call (c, _) -> c.ctype
   | Binop (b, _) -> b.btype
+  | FnDef (fndef, _) -> fndef.fnret
 ;;
 
 let rec typed_expr (e : Ast.expr) =
@@ -141,7 +149,7 @@ let rec typed_expr (e : Ast.expr) =
         in
         Array.set mapped_fields idx (typed_expr field_expr, field_loc))
       fields;
-    TypeConstruct (StructConst { sname = name; sfields = mapped_fields }, loc)
+    TypeConstruct (StructConst { scname = name; scfields = mapped_fields }, loc)
   | Ast.Int i -> Int i
   | Ast.Float f -> Float f
   | Ast.Bool b -> Bool b

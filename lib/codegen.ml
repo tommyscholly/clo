@@ -44,30 +44,29 @@ let register_extern_functions () =
 ;;
 
 let rec codegen_expr = function
-  | Ast.Int n -> Llvm.const_int i32_type n
-  | Ast.Float n -> Llvm.const_float double_type n
-  | Ast.Bool b -> Llvm.const_int bool_type (if b then 1 else 0)
-  | Ast.Variable (name, loc) ->
+  | Typed_ast.Int n -> Llvm.const_int i32_type n
+  | Typed_ast.Float n -> Llvm.const_float double_type n
+  | Typed_ast.Bool b -> Llvm.const_int bool_type (if b then 1 else 0)
+  | Typed_ast.Variable (name, _, loc) ->
     (try Hashtbl.find named_values name with
      | Not_found -> raise (CodegenError (UnknownVar, loc)))
-  | Ast.Call (callee, args, loc) ->
+  | Typed_ast.Call (call, loc) ->
     let fn_ty =
-      try Hashtbl.find fn_tys callee with
+      try Hashtbl.find fn_tys call.cname with
       | Not_found -> raise (CodegenError (UnknownVar, loc))
     in
     let callee =
-      match Llvm.lookup_function callee llvm_module with
+      match Llvm.lookup_function call.cname llvm_module with
       | Some c -> c
       | None -> raise (CodegenError (Call, loc))
     in
     let params = Llvm.params callee in
-    if Array.length params == List.length args
+    if Array.length params == List.length call.cargs
     then ()
     else raise (CodegenError (Args, loc));
-    let args = Array.of_list (List.map codegen_expr args) in
+    let args = Array.of_list (List.map codegen_expr call.cargs) in
     Llvm.build_call fn_ty callee args "calltmp" builder
-  | Ast.Function ((name, params, type_expr, body), loc) ->
-    codegen_fn name params type_expr body loc
+  | Typed_ast.FnDef (fndef, loc) -> codegen_fn fndef loc
   | Ast.Binop (bop, lhs, rhs, _) ->
     let lhs_val = codegen_expr lhs in
     let rhs_val = codegen_expr rhs in
@@ -120,47 +119,46 @@ let rec codegen_expr = function
     Llvm.struct_set_body named_struct field_types false;
     Llvm.dump_type named_struct;
     Llvm.const_null named_struct
-  | Ast.StructConstruct (name, args, loc) ->
-    let struct_type = Llvm.type_by_name llvm_module name in
-    let struct_type =
-      match struct_type with
-      | Some t -> t
-      | None -> raise (CodegenError (UnknownType, loc))
-    in
-    let args = Array.of_list args in
-    let struct_alloc = Llvm.build_alloca struct_type name builder in
-    Array.iteri
-      (fun i e ->
-        let v = codegen_expr e in
-        let gep =
-          Llvm.build_struct_gep struct_type struct_alloc i (string_of_int i) builder
-        in
-        let _ = Llvm.build_store v gep builder in
-        ())
-      args;
-    struct_alloc
-  | Ast.Return (e, loc) ->
+  | Typed_ast.TypeConstruct (tc, loc) ->
+    (match tc with
+     | Typed_ast.EnumConst -> raise (CodegenError (NotSupported, loc))
+     | Typed_ast.StructConst sc ->
+       let struct_type = Llvm.type_by_name llvm_module sc.scname in
+       let struct_type =
+         match struct_type with
+         | Some t -> t
+         | None -> raise (CodegenError (UnknownType, loc))
+       in
+       let args = sc.scfields in
+       let struct_alloc = Llvm.build_alloca struct_type sc.scname builder in
+       Array.iteri
+         (fun i (e, _) ->
+           let v = codegen_expr e in
+           let gep =
+             Llvm.build_struct_gep struct_type struct_alloc i (string_of_int i) builder
+           in
+           let _ = Llvm.build_store v gep builder in
+           ())
+         args;
+       struct_alloc)
+  | Typed_ast.Return (e, _, loc) ->
     (try codegen_expr e with
      | CodegenError (_, _) -> raise (CodegenError (ReturnType, loc)))
 
-and codegen_fn name params type_expr body loc =
+and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)
-  let args = Array.of_list params in
-  let type_expr =
-    match type_expr with
-    | Some t -> t
-    | None -> Ast.TVoid
-  in
+  let args = Array.of_list fndef.fnparams in
+  let type_expr = fndef.fnret in
   let fn_ret_type = map_type_def type_expr loc in
-  let split = List.split params in
+  let split = List.split fndef.fnparams in
   let param_names = Array.of_list (fst split) in
   let param_types =
     Array.of_list (List.map (fun ty -> map_type_def ty loc) (snd split))
   in
   let ft = Llvm.function_type fn_ret_type param_types in
   let fn =
-    match Llvm.lookup_function name llvm_module with
-    | None -> Llvm.declare_function name ft llvm_module
+    match Llvm.lookup_function fndef.fnname llvm_module with
+    | None -> Llvm.declare_function fndef.fnname ft llvm_module
     | Some f ->
       if Array.length (Llvm.basic_blocks f) == 0
       then ()
@@ -185,11 +183,11 @@ and codegen_fn name params type_expr body loc =
     List.iter
       (fun e ->
         match e with
-        | Ast.Return (_, _) -> ret_val := Some (codegen_expr e)
+        | Typed_ast.Return (_, _, _) -> ret_val := Some (codegen_expr e)
         | _ ->
           let _ = codegen_expr e in
           ())
-      body;
+      fndef.fnexprs;
     let _ =
       match type_expr with
       | Ast.TVoid -> Llvm.build_ret_void builder
@@ -199,7 +197,7 @@ and codegen_fn name params type_expr body loc =
          | None -> raise (CodegenError (ReturnType, loc)))
     in
     Llvm_analysis.assert_valid_function fn;
-    Hashtbl.add fn_tys name ft;
+    Hashtbl.add fn_tys fndef.fnname ft;
     fn
   with
   | e ->
