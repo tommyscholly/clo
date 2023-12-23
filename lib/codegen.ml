@@ -120,6 +120,25 @@ let rec codegen_expr = function
     Llvm.struct_set_body named_struct field_types false;
     Llvm.dump_type named_struct;
     Llvm.const_null named_struct
+  | Ast.StructConstruct (name, args, loc) ->
+    let struct_type = Llvm.type_by_name llvm_module name in
+    let struct_type =
+      match struct_type with
+      | Some t -> t
+      | None -> raise (CodegenError (UnknownType, loc))
+    in
+    let args = Array.of_list args in
+    let struct_alloc = Llvm.build_alloca struct_type name builder in
+    Array.iteri
+      (fun i e ->
+        let v = codegen_expr e in
+        let gep =
+          Llvm.build_struct_gep struct_type struct_alloc i (string_of_int i) builder
+        in
+        let _ = Llvm.build_store v gep builder in
+        ())
+      args;
+    struct_alloc
   | Ast.Return (e, loc) ->
     (try codegen_expr e with
      | CodegenError (_, _) -> raise (CodegenError (ReturnType, loc)))

@@ -9,6 +9,7 @@ type bop =
  * function takes). *)
 type type_expr =
   | TInt
+  | TFloat
   | TString
   | TVoid
   | TBool
@@ -33,5 +34,7 @@ type expr =
   | Function of fndef * loc
   | Return of expr * loc
   | Struct of string * field list * loc
+  | StructConstruct of string * construct_field list * loc
 
 and fndef = string * param list * type_expr option * expr list
+and construct_field = string * expr * loc

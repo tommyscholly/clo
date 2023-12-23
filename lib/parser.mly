@@ -91,6 +91,9 @@ type_defn:
     | TYPE; name=IDENT; body=struct_expr { Struct (name, body, ($startpos, $endpos)) }
     ;
 
+(* struct_construct: *)
+(*     |  *)
+
 expr:
     | LPAREN; e=expr RPAREN {e}
     | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, ($startpos, $endpos)) }
