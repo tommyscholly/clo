@@ -1,5 +1,7 @@
 type loc = Lexing.position * Lexing.position (* start, end *)
 
+let dummy_loc = Lexing.dummy_pos, Lexing.dummy_pos
+
 type bop =
   | Plus
   | Mul

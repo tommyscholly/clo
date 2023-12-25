@@ -86,7 +86,7 @@ and type_construct =
   | StructConst of struct_construct
 
 let defined_structs = Hashtbl.create 10 (* struct_name -> HashTbl<field_name, idx> *)
-let bound_variables = Hashtbl.create 10
+let bound_variables: (string, type_expr)Hashtbl.t = Hashtbl.create 10
 let string_of_type = Ast.string_of_type
 let defined_functions = Hashtbl.create 10 (* fn_name -> type_expr *)
 
@@ -117,7 +117,7 @@ let rec typed_expr (e : Ast.expr) =
       | None -> Hashtbl.create 10
     in
     let fields = Array.of_list fields in
-    let field_types = [||] in
+    let field_types = Array.make (Array.length fields) (Ast.TVoid, Ast.dummy_loc) in
     Array.iteri
       (fun i f ->
         let field_name, field_type, loc =
@@ -154,13 +154,18 @@ let rec typed_expr (e : Ast.expr) =
   | Ast.Float f -> Float f
   | Ast.Bool b -> Bool b
   | Ast.Variable (var_name, loc) ->
+    (* Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" x (string_of_type y)) bound_variables; *)
     let bound_var =
       try Hashtbl.find bound_variables var_name with
-      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = Some var_name; loc })
     in
-    Variable (var_name, type_of bound_var, loc)
+    Variable (var_name, bound_var, loc)
   | Ast.Let (name, ty, expr, loc) ->
-    Let ({ lname = name; ltype = ty; lbinding = typed_expr expr }, loc)
+    let lbinding = typed_expr expr in
+    let lbinding_type = type_of lbinding in
+    if ty != lbinding_type then raise (TypeError {kind = TETypeMismatch; msg = None; loc}) else ();
+    Hashtbl.add bound_variables name lbinding_type;
+    Let ({ lname = name; ltype = ty; lbinding }, loc)
   | Ast.Binop (bop, lhs, rhs, loc) ->
     let lhs = typed_expr lhs in
     let rhs = typed_expr rhs in
@@ -182,6 +187,8 @@ let rec typed_expr (e : Ast.expr) =
     else ();
     Binop ({ bop; lhs; rhs; btype = lhs_type }, loc)
   | Function ((fnname, fnparams, fntype_opt, fnexprs), loc) ->
+    Hashtbl.clear bound_variables; (* bound variables do not persist across functions *)
+    List.iter (fun (pname, ptype) -> Hashtbl.add bound_variables pname ptype) fnparams;
     let fnexprs = List.map typed_expr fnexprs in
     (* list of types of all the returns in the function *)
     (* need to extract the locations as well for better error reporting *)
@@ -219,7 +226,7 @@ let rec typed_expr (e : Ast.expr) =
   | Print (str, args, loc) ->
     let cargs = List.map (fun e -> typed_expr e) args in
     let cargs = Str str :: cargs in
-    Call ({ cname = "print"; cargs; ctype = TVoid }, loc)
+    Call ({ cname = "printf"; cargs; ctype = TVoid }, loc)
   | Return (expr, loc) ->
     let texpr = typed_expr expr in
     let ty = type_of texpr in

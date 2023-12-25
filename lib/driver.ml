@@ -64,14 +64,19 @@ let parse filename =
 
 let codegen_error_to_message (ety : Codegen.errorty) =
   match ety with
-  | Call -> "Called function does not exist"
-  | Defn -> "Function define error"
-  | Redef -> "Attempt to redefine function"
-  | UnknownVar -> "Unknown variable referenced"
-  | Args -> "Incorrect arguments"
-  | UnknownType -> "Unknown type referenced"
-  | ReturnType -> "Return type not provided"
-  | NotSupported -> "This is not supported"
+  | Call -> "Called function does not exist\n"
+  | Defn -> "Function define error\n"
+  | Redef -> "Attempt to redefine function\n"
+  | UnknownVar s -> Format.sprintf "Unknown variable %s referenced\n" s
+  | Args (param_args, call_args, call_name) ->
+    Format.sprintf
+      "Incorrect arguments for %s, expected %d got %d\n"
+      call_name
+      param_args
+      call_args
+  | UnknownType -> "Unknown type referenced\n"
+  | ReturnType -> "Return type not provided\n"
+  | NotSupported -> "This is not supported\n"
 ;;
 
 let gen a =
