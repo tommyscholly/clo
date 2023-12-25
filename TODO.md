@@ -10,3 +10,5 @@ Type inference
   - now that we can determine the type of any function, we can have basic type inference
 
 Tagged unions
+
+convert field access to use build_load
