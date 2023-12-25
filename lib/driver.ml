@@ -59,7 +59,60 @@ let parse filename =
   let lexbuf = Lexing.from_channel channel in
   Lexing.set_filename lexbuf filename;
   let ast = parse_with_error lexbuf in
-  ast
+  let read_channel = get_in_channel filename in
+  let file_contents = really_input_string read_channel (in_channel_length read_channel) in
+  close_in channel;
+  close_in read_channel;
+  ast, file_contents
+;;
+
+let typed file_contents e =
+  try Typed_ast.typed_expr e with
+  | Typed_ast.TypeError te ->
+    let _ =
+      match te.kind with
+      | TETypeDefAsValue ->
+        Reporting.Renderer.render_error
+          file_contents
+          "Type definition used as value"
+          te.loc
+          te.msg
+      | TETypeRedefine ->
+        Reporting.Renderer.render_error
+          file_contents
+          "Type definition was redefined"
+          te.loc
+          te.msg
+      | TEFieldLengthMismatch ->
+        Reporting.Renderer.render_error
+          file_contents
+          "Field length mismatch"
+          te.loc
+          te.msg
+      | TEFieldNonExistant ->
+        Reporting.Renderer.render_error
+          file_contents
+          "Field is non-existant"
+          te.loc
+          te.msg
+      | TETypeConstructWithoutDefine ->
+        Reporting.Renderer.render_error file_contents "Type is not defined" te.loc te.msg
+      | TEVariableNotBound ->
+        Reporting.Renderer.render_error file_contents "Variable not bound" te.loc te.msg
+      | TETypeMismatch ->
+        Reporting.Renderer.render_error file_contents "Type mismatch" te.loc te.msg
+      | TEReturnTypeMismatch ->
+        Reporting.Renderer.render_error file_contents "Return type mismatch" te.loc te.msg
+      | TEFunctionNonExistant ->
+        Reporting.Renderer.render_error
+          file_contents
+          "Function is non-existant"
+          te.loc
+          te.msg
+      | TEInvalidFieldAccess ->
+        Reporting.Renderer.render_error file_contents "Invalid field access" te.loc te.msg
+    in
+    exit 1
 ;;
 
 let codegen_error_to_message (ety : Codegen.errorty) =
@@ -98,8 +151,8 @@ let gen a =
 ;;
 
 let top filename =
-  let ast = parse filename in
-  let ast = List.map Typed_ast.typed_expr ast in
+  let ast, contents = parse filename in
+  let ast = List.map (typed contents) ast in
   let _ = Codegen.register_extern_functions () in
   let _ = List.iter (fun a -> gen a) ast in
   Llvm.dump_module Codegen.llvm_module;

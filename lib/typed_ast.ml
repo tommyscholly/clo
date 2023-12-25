@@ -90,7 +90,8 @@ and type_construct =
 and field_access =
   { fvarname : string
   ; ffieldidx : int
-    ; ffieldtype : type_expr; ftypename: string
+  ; ffieldtype : type_expr
+  ; ftypename : string
   }
 
 let defined_structs : (string, struct_def) Hashtbl.t =
@@ -149,7 +150,13 @@ let rec typed_expr (e : Ast.expr) =
       | Not_found -> raise (TypeError { kind = TEFieldNonExistant; msg = None; loc })
     in
     let field_type, _ = Array.get sdef.sfields idx in
-    FieldAccess ({ fvarname = var_name; ffieldidx = idx; ffieldtype = field_type; ftypename = var_type }, loc)
+    FieldAccess
+      ( { fvarname = var_name
+        ; ffieldidx = idx
+        ; ffieldtype = field_type
+        ; ftypename = var_type
+        }
+      , loc )
   | Ast.Struct (name, fields, loc) ->
     let struct_field_tbl =
       match Hashtbl.find_opt defined_struct_fields name with
@@ -196,7 +203,6 @@ let rec typed_expr (e : Ast.expr) =
   | Ast.Float f -> Float f
   | Ast.Bool b -> Bool b
   | Ast.Variable (var_name, loc) ->
-    (* Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" x (string_of_type y)) bound_variables; *)
     let bound_var =
       try Hashtbl.find bound_variables var_name with
       | Not_found ->
@@ -207,7 +213,18 @@ let rec typed_expr (e : Ast.expr) =
     let lbinding = typed_expr expr in
     let lbinding_type = type_of lbinding in
     if ty <> lbinding_type
-    then raise (TypeError { kind = TETypeMismatch; msg = None; loc })
+    then
+      raise
+        (TypeError
+           { kind = TETypeMismatch
+           ; msg =
+               Some
+                 (Format.sprintf
+                    "Left side type %s does not match right side type %s"
+                    (string_of_type ty)
+                    (string_of_type lbinding_type))
+           ; loc
+           })
     else ();
     Hashtbl.add bound_variables name lbinding_type;
     (* be able to look up bindings to find and validate field accesses *)
@@ -226,7 +243,7 @@ let rec typed_expr (e : Ast.expr) =
            ; msg =
                Some
                  (Format.sprintf
-                    "Left hand %s and right hand %s mismatch"
+                    "Left side type %s does not match right side type %s"
                     (string_of_type lhs_type)
                     (string_of_type rhs_type))
            })
