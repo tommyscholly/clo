@@ -46,6 +46,7 @@ type expr =
   | Return of expr * loc
   | Struct of string * field list * loc
   | StructConstruct of string * construct_field list * loc
+  | FieldAccess of string * string * loc (* name.field *)
 
 and fndef = string * param list * type_expr option * expr list
 and construct_field = string * expr * loc

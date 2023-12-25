@@ -24,6 +24,7 @@
 %token COLON
 %token SEMICOLON
 %token EQUAL
+%token DOT
 
 %token TYPE
 
@@ -46,6 +47,7 @@ type_expr:
     | TYPE_INT { TInt }
     | TYPE_BOOL { TBool }
     | TYPE_VOID { TVoid }
+    | custom=IDENT; { TCustom custom }
     ;
 
 type_annotation:
@@ -91,8 +93,13 @@ type_defn:
     | TYPE; name=IDENT; body=struct_expr { Struct (name, body, ($startpos, $endpos)) }
     ;
 
-(* struct_construct: *)
-(*     |  *)
+struct_construct_field:
+    | name=IDENT; COLON; e=expr; SEMICOLON { (name, e, ($startpos, $endpos)) }
+    ;
+
+struct_construct:
+    | name=IDENT; LBRACE; fields=list(struct_construct_field); RBRACE { StructConstruct (name, fields, ($startpos, $endpos))}
+    ;
 
 expr:
     | LPAREN; e=expr RPAREN {e}
@@ -102,12 +109,14 @@ expr:
     | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN; {  Print(str, args, ($startpos, $endpos)) }
     | fn_def=function_defn { fn_def }
     | type_def=type_defn { type_def }
+    | sc=struct_construct { sc }
     | id=IDENT { Variable (id, ($startpos, $endpos)) }
     | i=INT { Int i }
     | f=FLOAT { Float f }
     | TRUE { Bool true }
     | FALSE { Bool false }
     | RETURN; e=expr { Return (e, ($startpos, $endpos)) }
+    | struct_name=IDENT; DOT; field_name=IDENT { FieldAccess (struct_name, field_name, ($startpos, $endpos)) }
     ;
 
 

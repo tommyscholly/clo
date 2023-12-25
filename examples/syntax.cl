@@ -8,8 +8,8 @@ fn adder(one: int, two: int) -> int {
 }
 
 fn main() {
-    let var: int = 1;
+    let var: t = t { field: 15; field_two: true; };
     let var2: int = 2;
-    print("%d", adder(var, var2));
+    print("%d", adder(var.field, var2));
 }
 

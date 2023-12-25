@@ -11,6 +11,7 @@ type type_error_kind =
   | TETypeMismatch
   | TEReturnTypeMismatch
   | TEFunctionNonExistant
+  | TEInvalidFieldAccess
 (* this needs to hold a 'loc list' that points to every return type location *)
 
 exception
@@ -34,6 +35,7 @@ type expr =
   | TypeDef of type_def * loc
   | TypeConstruct of
       type_construct * loc (* something like thing = StructName { field_one: string} *)
+  | FieldAccess of field_access * loc
 
 and call =
   { cname : string
@@ -85,8 +87,21 @@ and type_construct =
   | EnumConst
   | StructConst of struct_construct
 
-let defined_structs = Hashtbl.create 10 (* struct_name -> HashTbl<field_name, idx> *)
-let bound_variables: (string, type_expr)Hashtbl.t = Hashtbl.create 10
+and field_access =
+  { fvarname : string
+  ; ffieldidx : int
+    ; ffieldtype : type_expr; ftypename: string
+  }
+
+let defined_structs : (string, struct_def) Hashtbl.t =
+  Hashtbl.create 10 (* struct_name -> struct_def *)
+;;
+
+let defined_struct_fields =
+  Hashtbl.create 10 (* struct_name -> HashTbl<field_name, idx> *)
+;;
+
+let bound_variables : (string, type_expr) Hashtbl.t = Hashtbl.create 10
 let string_of_type = Ast.string_of_type
 let defined_functions = Hashtbl.create 10 (* fn_name -> type_expr *)
 
@@ -106,13 +121,38 @@ let type_of = function
   | Call (c, _) -> c.ctype
   | Binop (b, _) -> b.btype
   | FnDef (fndef, _) -> fndef.fnret
+  | FieldAccess (faccess, _) -> faccess.ffieldtype
 ;;
 
 let rec typed_expr (e : Ast.expr) =
   match e with
+  | Ast.FieldAccess (var_name, field_name, loc) ->
+    let var_type =
+      try Hashtbl.find bound_variables var_name with
+      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+    in
+    let var_type =
+      match var_type with
+      | Ast.TCustom s -> s
+      | _ -> raise (TypeError { kind = TEInvalidFieldAccess; msg = None; loc })
+    in
+    let sdef =
+      try Hashtbl.find defined_structs var_type with
+      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+    in
+    let struct_fields =
+      try Hashtbl.find defined_struct_fields var_type with
+      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+    in
+    let idx =
+      try Hashtbl.find struct_fields field_name with
+      | Not_found -> raise (TypeError { kind = TEFieldNonExistant; msg = None; loc })
+    in
+    let field_type, _ = Array.get sdef.sfields idx in
+    FieldAccess ({ fvarname = var_name; ffieldidx = idx; ffieldtype = field_type; ftypename = var_type }, loc)
   | Ast.Struct (name, fields, loc) ->
     let struct_field_tbl =
-      match Hashtbl.find_opt defined_structs name with
+      match Hashtbl.find_opt defined_struct_fields name with
       | Some _ -> raise (TypeError { kind = TETypeRedefine; loc; msg = None })
       | None -> Hashtbl.create 10
     in
@@ -127,11 +167,13 @@ let rec typed_expr (e : Ast.expr) =
         Hashtbl.add struct_field_tbl field_name i;
         Array.set field_types i (field_type, loc))
       fields;
-    Hashtbl.add defined_structs name struct_field_tbl;
-    TypeDef (StructDef { sname = name; sfields = field_types }, loc)
+    Hashtbl.add defined_struct_fields name struct_field_tbl;
+    let def = { sname = name; sfields = field_types } in
+    Hashtbl.add defined_structs name def;
+    TypeDef (StructDef def, loc)
   | Ast.StructConstruct (name, fields, loc) ->
     let struct_field_tbl =
-      try Hashtbl.find defined_structs name with
+      try Hashtbl.find defined_struct_fields name with
       | Not_found ->
         raise (TypeError { kind = TETypeConstructWithoutDefine; loc; msg = None })
     in
@@ -139,7 +181,7 @@ let rec typed_expr (e : Ast.expr) =
     if Array.length fields != Hashtbl.length struct_field_tbl
     then raise (TypeError { kind = TEFieldLengthMismatch; loc; msg = None })
     else ();
-    let mapped_fields = [||] in
+    let mapped_fields = Array.make (Array.length fields) (Int 0, Ast.dummy_loc) in
     Array.iter
       (fun (field_name, field_expr, field_loc) ->
         let idx =
@@ -157,14 +199,18 @@ let rec typed_expr (e : Ast.expr) =
     (* Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" x (string_of_type y)) bound_variables; *)
     let bound_var =
       try Hashtbl.find bound_variables var_name with
-      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = Some var_name; loc })
+      | Not_found ->
+        raise (TypeError { kind = TEVariableNotBound; msg = Some var_name; loc })
     in
     Variable (var_name, bound_var, loc)
   | Ast.Let (name, ty, expr, loc) ->
     let lbinding = typed_expr expr in
     let lbinding_type = type_of lbinding in
-    if ty != lbinding_type then raise (TypeError {kind = TETypeMismatch; msg = None; loc}) else ();
+    if ty <> lbinding_type
+    then raise (TypeError { kind = TETypeMismatch; msg = None; loc })
+    else ();
     Hashtbl.add bound_variables name lbinding_type;
+    (* be able to look up bindings to find and validate field accesses *)
     Let ({ lname = name; ltype = ty; lbinding }, loc)
   | Ast.Binop (bop, lhs, rhs, loc) ->
     let lhs = typed_expr lhs in
@@ -187,7 +233,8 @@ let rec typed_expr (e : Ast.expr) =
     else ();
     Binop ({ bop; lhs; rhs; btype = lhs_type }, loc)
   | Function ((fnname, fnparams, fntype_opt, fnexprs), loc) ->
-    Hashtbl.clear bound_variables; (* bound variables do not persist across functions *)
+    Hashtbl.clear bound_variables;
+    (* bound variables do not persist across functions *)
     List.iter (fun (pname, ptype) -> Hashtbl.add bound_variables pname ptype) fnparams;
     let fnexprs = List.map typed_expr fnexprs in
     (* list of types of all the returns in the function *)

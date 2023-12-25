@@ -30,6 +30,10 @@ let map_type_def ty loc =
   | Ast.TInt -> i32_type
   | Ast.TVoid -> void_type
   | Ast.TBool -> bool_type
+  | Ast.TCustom name ->
+    (match Llvm.type_by_name llvm_module name with
+     | Some ty -> ty
+     | None -> raise (CodegenError (UnknownType, loc)))
   | _ -> raise (CodegenError (UnknownType, loc))
 ;;
 
@@ -63,9 +67,12 @@ let rec codegen_expr = function
     in
     let params = Llvm.params callee in
     (* if var arg, we just need to have the minimum required arguments (like print requires a str), otherwise, equal the exact amount *)
-    if (not is_var_arg && Array.length params == List.length call.cargs) || (is_var_arg && Array.length params <= List.length call.cargs)
+    if ((not is_var_arg) && Array.length params == List.length call.cargs)
+       || (is_var_arg && Array.length params <= List.length call.cargs)
     then ()
-    else raise (CodegenError (Args (Array.length params, List.length call.cargs, call.cname), loc));
+    else
+      raise
+        (CodegenError (Args (Array.length params, List.length call.cargs, call.cname), loc));
     let args = Array.of_list (List.map codegen_expr call.cargs) in
     let call_assign_name = if call.ctype == Ast.TVoid then "" else "calltmp" in
     Llvm.build_call fn_ty callee args call_assign_name builder
@@ -139,6 +146,29 @@ let rec codegen_expr = function
   | Typed_ast.Return (e, _, loc) ->
     (try codegen_expr e with
      | CodegenError (_, _) -> raise (CodegenError (ReturnType, loc)))
+  | Typed_ast.FieldAccess (faccess, loc) ->
+    let var =
+      try Hashtbl.find named_values faccess.fvarname with
+      | Not_found -> raise (CodegenError (UnknownVar faccess.fvarname, loc))
+    in
+    let struct_type = Llvm.type_by_name llvm_module faccess.ftypename in
+    let struct_type =
+      match struct_type with
+      | Some ty -> ty
+      | None -> raise (CodegenError (UnknownType, loc))
+    in
+    let gep =
+      Llvm.build_struct_gep
+        struct_type
+        var
+        faccess.ffieldidx
+        (string_of_int faccess.ffieldidx)
+        builder
+    in
+    (match faccess.ffieldtype with
+     | Ast.TInt | Ast.TBool ->
+       Llvm.build_ptrtoint gep (map_type_def faccess.ffieldtype loc) "ptrtoint" builder
+     | _ -> raise (CodegenError (NotSupported, loc)))
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)

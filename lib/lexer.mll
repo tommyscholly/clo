@@ -12,9 +12,9 @@
 }
 
 let digit = ['0'-'9']
-let frac = '.' digit*
-let exp = ['e' 'E'] ['-' '+']? digit+
-let float = digit* frac exp?
+let frac = '.' digit+
+(* let exp = ['e' 'E'] ['-' '+']? digit+ *)
+let float = digit* frac (* exp? *)
 let int = '-'? digit+
 
 let white = [' ' '\t']+
@@ -48,6 +48,7 @@ rule read =
   | ":"      { COLON }
   | ";"      { SEMICOLON }
   | "="      { EQUAL }
+  | "."      { DOT }
   | '"'      { read_string (Buffer.create 17) lexbuf }
   | id       { IDENT (Lexing.lexeme lexbuf) }
   | _        { raise ( SyntaxError ("Unexpected char: " ^ Lexing.lexeme lexbuf)) }
