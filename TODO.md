@@ -1,4 +1,4 @@
-Type check struct field definition
+DONE: Type check struct field definition
   - i.e if you have type 'type t { one: int }'
   - you can define it as 'let test: t = t { one: true }'
   - and it generates "valid" LLVM IR, as LLVM will willingly write an i8 to an i32
@@ -11,4 +11,4 @@ Type inference
 
 Tagged unions
 
-convert field access to use build_load
+convert field access to use build/load
