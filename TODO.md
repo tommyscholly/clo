@@ -8,6 +8,7 @@ Type check expressions passed to functions
 
 Type inference
   - now that we can determine the type of any function, we can have basic type inference
+  - DONE: basic variable type inference
 
 Tagged unions
 

@@ -167,7 +167,7 @@ let rec codegen_expr = function
     in
     (match faccess.ffieldtype with
      | Ast.TInt | Ast.TBool ->
-       Llvm.build_ptrtoint gep (map_type_def faccess.ffieldtype loc) "ptrtoint" builder
+       Llvm.build_load (map_type_def faccess.ffieldtype loc) gep "loadfield" builder
      | _ -> raise (CodegenError (NotSupported, loc)))
 
 and codegen_fn fndef loc =
@@ -175,10 +175,10 @@ and codegen_fn fndef loc =
   let args = Array.of_list fndef.fnparams in
   let type_expr = fndef.fnret in
   let fn_ret_type = map_type_def type_expr loc in
-  let split = List.split fndef.fnparams in
-  let param_names = Array.of_list (fst split) in
+  let (param_names, param_types, _ ) = Util.split_tuples fndef.fnparams in
+  let param_names = Array.of_list param_names in
   let param_types =
-    Array.of_list (List.map (fun ty -> map_type_def ty loc) (snd split))
+    Array.of_list (List.map (fun ty -> map_type_def ty loc) (param_types))
   in
   let ft = Llvm.function_type fn_ret_type param_types in
   let fn =

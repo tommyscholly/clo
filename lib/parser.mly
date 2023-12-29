@@ -55,7 +55,7 @@ type_annotation:
     ;
 
 param:
-    | param_name=IDENT; param_type=type_annotation { param_name, param_type }
+    | param_name=IDENT; param_type=type_annotation { param_name, param_type, ($startpos, $endpos) }
     ;
 
 params:
@@ -104,7 +104,7 @@ struct_construct:
 expr:
     | LPAREN; e=expr RPAREN {e}
     | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, ($startpos, $endpos)) }
-    | LET; id=IDENT; annot=type_annotation; EQUAL; e=expr { Let (id, annot, e, ($startpos, $endpos)) }
+    | LET; id=IDENT; annot=option(type_annotation); EQUAL; e=expr { Let (id, annot, e, ($startpos, $endpos)) }
     | fn=IDENT; fn_args=args { Call (fn, fn_args, ($startpos, $endpos)) }
     | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN; {  Print(str, args, ($startpos, $endpos)) }
     | fn_def=function_defn { fn_def }

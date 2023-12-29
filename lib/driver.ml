@@ -77,40 +77,45 @@ let typed file_contents e =
           "Type definition used as value"
           te.loc
           te.msg
+          None
       | TETypeRedefine ->
         Reporting.Renderer.render_error
           file_contents
           "Type definition was redefined"
           te.loc
           te.msg
+          None
       | TEFieldLengthMismatch ->
         Reporting.Renderer.render_error
           file_contents
           "Field length mismatch"
           te.loc
           te.msg
+          None
       | TEFieldNonExistant ->
         Reporting.Renderer.render_error
           file_contents
           "Field is non-existant"
           te.loc
           te.msg
+          None
       | TETypeConstructWithoutDefine ->
-        Reporting.Renderer.render_error file_contents "Type is not defined" te.loc te.msg
+        Reporting.Renderer.render_error file_contents "Type is not defined" te.loc te.msg None
       | TEVariableNotBound ->
-        Reporting.Renderer.render_error file_contents "Variable not bound" te.loc te.msg
-      | TETypeMismatch ->
-        Reporting.Renderer.render_error file_contents "Type mismatch" te.loc te.msg
+        Reporting.Renderer.render_error file_contents "Variable not bound" te.loc te.msg None
+      | TETypeMismatch loc_opt ->
+        Reporting.Renderer.render_error file_contents "Type mismatch" te.loc te.msg loc_opt
       | TEReturnTypeMismatch ->
-        Reporting.Renderer.render_error file_contents "Return type mismatch" te.loc te.msg
+        Reporting.Renderer.render_error file_contents "Return type mismatch" te.loc te.msg None
       | TEFunctionNonExistant ->
         Reporting.Renderer.render_error
           file_contents
           "Function is non-existant"
           te.loc
           te.msg
+          None
       | TEInvalidFieldAccess ->
-        Reporting.Renderer.render_error file_contents "Invalid field access" te.loc te.msg
+        Reporting.Renderer.render_error file_contents "Invalid field access" te.loc te.msg None
     in
     exit 1
 ;;

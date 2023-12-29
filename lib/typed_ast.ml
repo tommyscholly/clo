@@ -8,7 +8,7 @@ type type_error_kind =
   | TEFieldNonExistant
   | TETypeConstructWithoutDefine
   | TEVariableNotBound
-  | TETypeMismatch
+  | TETypeMismatch of loc option
   | TEReturnTypeMismatch
   | TEFunctionNonExistant
   | TEInvalidFieldAccess
@@ -56,7 +56,7 @@ and let_expr =
   ; lbinding : expr
   }
 
-and fnparam = string * type_expr
+and fnparam = string * type_expr * loc
 
 and fn_def =
   { fnname : string
@@ -138,13 +138,13 @@ let typecheck_field field_name struct_name fieldty loc =
     try Hashtbl.find struct_fields field_name with
     | Not_found -> raise (TypeError { kind = TEFieldNonExistant; msg = None; loc })
   in
-  let field_type, _ = Array.get sdef.sfields idx in
+  let field_type, fieldloc = Array.get sdef.sfields idx in
   if field_type = fieldty
   then ()
   else
     raise
       (TypeError
-         { kind = TETypeMismatch
+         { kind = TETypeMismatch (Some fieldloc)
          ; msg =
              Some
                (Format.sprintf
@@ -158,7 +158,7 @@ let typecheck_field field_name struct_name fieldty loc =
 
 let rec typed_expr (e : Ast.expr) =
   match e with
-  | Ast.FieldAccess (var_name, field_name, loc) ->
+  | FieldAccess (var_name, field_name, loc) ->
     let var_type =
       try Hashtbl.find bound_variables var_name with
       | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
@@ -188,7 +188,7 @@ let rec typed_expr (e : Ast.expr) =
         ; ftypename = var_type
         }
       , loc )
-  | Ast.Struct (name, fields, loc) ->
+  | Struct (name, fields, loc) ->
     let struct_field_tbl =
       match Hashtbl.find_opt defined_struct_fields name with
       | Some _ -> raise (TypeError { kind = TETypeRedefine; loc; msg = None })
@@ -233,37 +233,42 @@ let rec typed_expr (e : Ast.expr) =
         Array.set mapped_fields idx (expr, field_loc))
       fields;
     TypeConstruct (StructConst { scname = name; scfields = mapped_fields }, loc)
-  | Ast.Int i -> Int i
-  | Ast.Float f -> Float f
-  | Ast.Bool b -> Bool b
-  | Ast.Variable (var_name, loc) ->
+  | Int i -> Int i
+  | Float f -> Float f
+  | Bool b -> Bool b
+  | Variable (var_name, loc) ->
     let bound_var =
       try Hashtbl.find bound_variables var_name with
       | Not_found ->
         raise (TypeError { kind = TEVariableNotBound; msg = Some var_name; loc })
     in
     Variable (var_name, bound_var, loc)
-  | Ast.Let (name, ty, expr, loc) ->
+  | Let (name, ty, expr, loc) ->
     let lbinding = typed_expr expr in
     let lbinding_type = type_of lbinding in
-    if ty <> lbinding_type
-    then
-      raise
-        (TypeError
-           { kind = TETypeMismatch
-           ; msg =
-               Some
-                 (Format.sprintf
-                    "Left side type %s does not match right side type %s"
-                    (string_of_type ty)
-                    (string_of_type lbinding_type))
-           ; loc
-           })
-    else ();
+    let ty =
+      match ty with
+      | Some ty ->
+        if ty <> lbinding_type
+        then
+          raise
+            (TypeError
+               { kind = TETypeMismatch None
+               ; msg =
+                   Some
+                     (Format.sprintf
+                        "Left side type %s does not match right side type %s"
+                        (string_of_type ty)
+                        (string_of_type lbinding_type))
+               ; loc
+               })
+        else ty
+      | None -> lbinding_type
+    in
     Hashtbl.add bound_variables name lbinding_type;
     (* be able to look up bindings to find and validate field accesses *)
     Let ({ lname = name; ltype = ty; lbinding }, loc)
-  | Ast.Binop (bop, lhs, rhs, loc) ->
+  | Binop (bop, lhs, rhs, loc) ->
     let lhs = typed_expr lhs in
     let rhs = typed_expr rhs in
     let lhs_type = type_of lhs in
@@ -272,7 +277,7 @@ let rec typed_expr (e : Ast.expr) =
     then
       raise
         (TypeError
-           { kind = TETypeMismatch
+           { kind = TETypeMismatch None
            ; loc
            ; msg =
                Some
@@ -286,7 +291,7 @@ let rec typed_expr (e : Ast.expr) =
   | Function ((fnname, fnparams, fntype_opt, fnexprs), loc) ->
     Hashtbl.clear bound_variables;
     (* bound variables do not persist across functions *)
-    List.iter (fun (pname, ptype) -> Hashtbl.add bound_variables pname ptype) fnparams;
+    List.iter (fun (pname, ptype, _) -> Hashtbl.add bound_variables pname ptype) fnparams;
     let fnexprs = List.map typed_expr fnexprs in
     (* list of types of all the returns in the function *)
     (* need to extract the locations as well for better error reporting *)
@@ -312,15 +317,37 @@ let rec typed_expr (e : Ast.expr) =
         | Some ty -> ty
         | None -> TVoid)
     in
-    Hashtbl.add defined_functions fnname fnret;
-    FnDef ({ fnname; fnparams; fnret; fnexprs }, loc)
+    let fndef = { fnname; fnparams; fnret; fnexprs } in
+    Hashtbl.add defined_functions fnname fndef;
+    FnDef (fndef, loc)
   | Call (fnname, args, loc) ->
     let cargs = List.map (fun e -> typed_expr e) args in
-    let ctype =
+    let fndef =
       try Hashtbl.find defined_functions fnname with
       | Not_found -> raise (TypeError { kind = TEFunctionNonExistant; msg = None; loc })
     in
-    Call ({ cname = fnname; cargs; ctype }, loc)
+    (* typecheck call args *)
+    let zipped_args = List.combine cargs fndef.fnparams in
+    List.iter
+      (fun (carg, (pname, p_ty, ploc)) ->
+        let arg_ty = type_of carg in
+        if arg_ty = p_ty
+        then ()
+        else
+          raise
+            (TypeError
+               { kind = TETypeMismatch (Some ploc)
+               ; loc
+               ; msg =
+                   Some
+                     (Format.sprintf
+                        "Parameter %s was expected of type %s, got %s"
+                        pname
+                        (string_of_type p_ty)
+                        (string_of_type arg_ty))
+               }))
+      zipped_args;
+    Call ({ cname = fnname; cargs; ctype = fndef.fnret }, loc)
   | Print (str, args, loc) ->
     let cargs = List.map (fun e -> typed_expr e) args in
     let cargs = Str str :: cargs in

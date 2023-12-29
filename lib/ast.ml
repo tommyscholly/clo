@@ -26,7 +26,7 @@ let string_of_type = function
   | TCustom s -> s
 ;;
 
-type param = string * type_expr
+type param = string * type_expr * loc
 type field = Field of string * type_expr * loc
 
 type expr =
@@ -41,7 +41,7 @@ type expr =
   (* variant for function calls. *)
   | Call of string * expr list * loc
   | Print of string * expr list * loc
-  | Let of string * type_expr * expr * loc
+  | Let of string * type_expr option * expr * loc
   | Function of fndef * loc
   | Return of expr * loc
   | Struct of string * field list * loc
