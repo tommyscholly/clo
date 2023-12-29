@@ -125,6 +125,37 @@ let type_of = function
   | FieldAccess (faccess, _) -> faccess.ffieldtype
 ;;
 
+let typecheck_field field_name struct_name fieldty loc =
+  let sdef =
+    try Hashtbl.find defined_structs struct_name with
+    | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+  in
+  let struct_fields =
+    try Hashtbl.find defined_struct_fields struct_name with
+    | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+  in
+  let idx =
+    try Hashtbl.find struct_fields field_name with
+    | Not_found -> raise (TypeError { kind = TEFieldNonExistant; msg = None; loc })
+  in
+  let field_type, _ = Array.get sdef.sfields idx in
+  if field_type = fieldty
+  then ()
+  else
+    raise
+      (TypeError
+         { kind = TETypeMismatch
+         ; msg =
+             Some
+               (Format.sprintf
+                  "Field %s expected type %s, got %s"
+                  field_name
+                  (string_of_type field_type)
+                  (string_of_type fieldty))
+         ; loc
+         })
+;;
+
 let rec typed_expr (e : Ast.expr) =
   match e with
   | Ast.FieldAccess (var_name, field_name, loc) ->
@@ -196,7 +227,10 @@ let rec typed_expr (e : Ast.expr) =
           | Not_found ->
             raise (TypeError { kind = TEFieldNonExistant; loc = field_loc; msg = None })
         in
-        Array.set mapped_fields idx (typed_expr field_expr, field_loc))
+        let expr = typed_expr field_expr in
+        let fieldty = type_of expr in
+        typecheck_field field_name name fieldty field_loc;
+        Array.set mapped_fields idx (expr, field_loc))
       fields;
     TypeConstruct (StructConst { scname = name; scfields = mapped_fields }, loc)
   | Ast.Int i -> Int i
