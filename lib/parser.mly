@@ -26,7 +26,8 @@
 %token EQUAL
 %token DOT
 
-%token TYPE
+%token STRUCT
+%token ENUM
 
 %token TYPE_INT 
 %token TYPE_BOOL
@@ -88,9 +89,26 @@ struct_field:
 
 struct_expr:
     | LBRACE; fields=list(struct_field); RBRACE { fields }
+    ;
 
-type_defn:
-    | TYPE; name=IDENT; body=struct_expr { Struct (name, body, ($startpos, $endpos)) }
+struct_defn:
+    | STRUCT; name=IDENT; body=struct_expr { Struct (name, body, ($startpos, $endpos)) }
+    ;
+
+enum_type_tag:
+    | LPAREN; ty=type_expr; RPAREN { ty }
+    ;
+
+enum_variant:
+    | name=IDENT; ty=option(enum_type_tag) { EnumVar (name, ty, ($startpos, $endpos)) }
+    ;
+
+enum_expr:
+    | LBRACE; variants=separated_list(COMMA, enum_variant); RBRACE { variants }
+    ;
+
+enum_defn:
+    | ENUM; name=IDENT; body=enum_expr { Enum (name, body, ($startpos, $endpos))}
     ;
 
 struct_construct_field:
@@ -108,7 +126,8 @@ expr:
     | fn=IDENT; fn_args=args { Call (fn, fn_args, ($startpos, $endpos)) }
     | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN; {  Print(str, args, ($startpos, $endpos)) }
     | fn_def=function_defn { fn_def }
-    | type_def=type_defn { type_def }
+    | struct_def=struct_defn { struct_def }
+    | enum_def=enum_defn { enum_def }
     | sc=struct_construct { sc }
     | id=IDENT { Variable (id, ($startpos, $endpos)) }
     | i=INT { Int i }

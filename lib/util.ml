@@ -1,3 +1,5 @@
+open Core
+
 let rec all_same lst =
   match lst with
   | [] -> true
@@ -11,4 +13,20 @@ let split_tuples lst =
     | (a, b, c) :: tl -> split (a :: acc_a) (b :: acc_b) (c :: acc_c) tl
   in
   split [] [] [] lst
+;;
+
+let is_pascal_case (identifier : string) : bool =
+  match identifier with
+  | "" -> false
+  | s ->
+    let first_char = String.get s 0 in
+    Char.is_uppercase first_char
+    && String.for_all
+         ~f:(fun c -> Char.is_lowercase c || Char.is_digit c)
+         (String.sub s ~pos:1 ~len:(String.length s - 1))
+;;
+
+let to_pascal_case (s : string) : string =
+  let words = String.split ~on:' ' s in
+  String.concat ~sep:"" (List.map ~f:String.capitalize words)
 ;;

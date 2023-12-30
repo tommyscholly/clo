@@ -33,7 +33,8 @@ rule read =
   | "true"   { TRUE }
   | "false"  { FALSE }
   | "return" { RETURN }
-  | "type"   { TYPE }
+  | "struct" { STRUCT }
+  | "enum"   { ENUM }
   | "void"   { TYPE_VOID }
   | "int"    { TYPE_INT }
   | "bool"   { TYPE_BOOL }

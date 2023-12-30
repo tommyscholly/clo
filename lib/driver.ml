@@ -71,6 +71,8 @@ let typed file_contents e =
   | Typed_ast.TypeError te ->
     let _ =
       match te.kind with
+      | TECasing ->
+        Reporting.Renderer.render_error file_contents "Casing error" te.loc te.msg None
       | TETypeDefAsValue ->
         Reporting.Renderer.render_error
           file_contents
@@ -100,13 +102,33 @@ let typed file_contents e =
           te.msg
           None
       | TETypeConstructWithoutDefine ->
-        Reporting.Renderer.render_error file_contents "Type is not defined" te.loc te.msg None
+        Reporting.Renderer.render_error
+          file_contents
+          "Type is not defined"
+          te.loc
+          te.msg
+          None
       | TEVariableNotBound ->
-        Reporting.Renderer.render_error file_contents "Variable not bound" te.loc te.msg None
+        Reporting.Renderer.render_error
+          file_contents
+          "Variable not bound"
+          te.loc
+          te.msg
+          None
       | TETypeMismatch loc_opt ->
-        Reporting.Renderer.render_error file_contents "Type mismatch" te.loc te.msg loc_opt
+        Reporting.Renderer.render_error
+          file_contents
+          "Type mismatch"
+          te.loc
+          te.msg
+          loc_opt
       | TEReturnTypeMismatch ->
-        Reporting.Renderer.render_error file_contents "Return type mismatch" te.loc te.msg None
+        Reporting.Renderer.render_error
+          file_contents
+          "Return type mismatch"
+          te.loc
+          te.msg
+          None
       | TEFunctionNonExistant ->
         Reporting.Renderer.render_error
           file_contents
@@ -115,7 +137,12 @@ let typed file_contents e =
           te.msg
           None
       | TEInvalidFieldAccess ->
-        Reporting.Renderer.render_error file_contents "Invalid field access" te.loc te.msg None
+        Reporting.Renderer.render_error
+          file_contents
+          "Invalid field access"
+          te.loc
+          te.msg
+          None
     in
     exit 1
 ;;

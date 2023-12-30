@@ -29,6 +29,10 @@ let string_of_type = function
 type param = string * type_expr * loc
 type field = Field of string * type_expr * loc
 
+type variant =
+  | EnumVar of string * type_expr option * loc
+  | StructVar of string * field list * loc
+
 type expr =
   (* variant for numeric literals like "1.0". *)
   | Int of int
@@ -45,6 +49,7 @@ type expr =
   | Function of fndef * loc
   | Return of expr * loc
   | Struct of string * field list * loc
+  | Enum of string * variant list * loc
   | StructConstruct of string * construct_field list * loc
   | FieldAccess of string * string * loc (* name.field *)
 

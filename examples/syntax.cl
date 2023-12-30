@@ -1,6 +1,11 @@
-type t {
+struct T {
     field: int;
     field_two: bool;
+}
+
+enum E {
+    Int(int),
+    Bool(bool)
 }
 
 fn adder(one: int, two: int) -> int {
@@ -8,8 +13,8 @@ fn adder(one: int, two: int) -> int {
 }
 
 fn main() {
-    let var = t { field: 15; field_two: true; };
+    let var = T { field: 15; field_two: true; };
     let var2 = 1;
-    print("%d", adder(var.field, true));
+    print("%d", adder(var.field, var2));
 }
 

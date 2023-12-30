@@ -12,6 +12,7 @@ type type_error_kind =
   | TEReturnTypeMismatch
   | TEFunctionNonExistant
   | TEInvalidFieldAccess
+  | TECasing
 (* this needs to hold a 'loc list' that points to every return type location *)
 
 exception
@@ -66,8 +67,18 @@ and fn_def =
   }
 
 and type_def =
-  | EnumDef
+  | EnumDef of enum_def
   | StructDef of struct_def
+
+and enum_def =
+  { ename : string
+  ; evariants : variant list
+  }
+
+and variant =
+  | Tag of string
+  | Union of string * type_expr
+  | Struct of string * struct_def
 
 and field = type_expr * loc
 
@@ -105,6 +116,23 @@ let defined_struct_fields =
 let bound_variables : (string, type_expr) Hashtbl.t = Hashtbl.create 10
 let string_of_type = Ast.string_of_type
 let defined_functions = Hashtbl.create 10 (* fn_name -> type_expr *)
+
+let size_of = function
+  | Ast.TInt -> 32
+  | Ast.TBool -> 8
+  | Ast.TFloat -> 64
+  | Ast.TStr -> 32 (* ptr *)
+  | Ast.TCustom _ -> 32 (* ptr *)
+  | Ast.TVoid -> 0
+;;
+
+let rec struct_size ?(sum = 0) fields =
+  match fields with
+  | [] -> sum
+  | (ty, _) :: fs ->
+    let sum = sum + size_of ty in
+    struct_size fs ~sum
+;;
 
 let type_of = function
   | Int _ -> Ast.TInt
@@ -156,8 +184,49 @@ let typecheck_field field_name struct_name fieldty loc =
          })
 ;;
 
+let make_struct name fields loc =
+  let struct_field_tbl =
+    match Hashtbl.find_opt defined_struct_fields name with
+    | Some _ -> raise (TypeError { kind = TETypeRedefine; loc; msg = None })
+    | None -> Hashtbl.create 10
+  in
+  let fields = Array.of_list fields in
+  let field_types = Array.make (Array.length fields) (Ast.TVoid, Ast.dummy_loc) in
+  Array.iteri
+    (fun i f ->
+      let field_name, field_type, loc =
+        match f with
+        | Ast.Field (field_name, field_type, l) -> field_name, field_type, l
+      in
+      Hashtbl.add struct_field_tbl field_name i;
+      Array.set field_types i (field_type, loc))
+    fields;
+  Hashtbl.add defined_struct_fields name struct_field_tbl;
+  { sname = name; sfields = field_types }
+;;
+
+let map_variant = function
+  | Ast.EnumVar (name, ty_opt, _) ->
+    (match ty_opt with
+     | Some ty -> Union (name, ty)
+     | None -> Tag name)
+  | Ast.StructVar (name, fields, loc) -> Struct (name, make_struct name fields loc)
+;;
+
 let rec typed_expr (e : Ast.expr) =
   match e with
+  | Enum (ename, variants, loc) ->
+    if not (Util.is_pascal_case ename)
+    then
+      raise
+        (TypeError
+           { kind = TECasing
+           ; msg = Some (Format.sprintf "Enum '%s' should be PascalCase\n  FIX: Rename to %s" ename (Util.to_pascal_case ename))
+           ; loc
+           })
+    else ();
+    let evariants = List.map map_variant variants in
+    TypeDef (EnumDef { ename; evariants }, loc)
   | FieldAccess (var_name, field_name, loc) ->
     let var_type =
       try Hashtbl.find bound_variables var_name with
@@ -189,24 +258,16 @@ let rec typed_expr (e : Ast.expr) =
         }
       , loc )
   | Struct (name, fields, loc) ->
-    let struct_field_tbl =
-      match Hashtbl.find_opt defined_struct_fields name with
-      | Some _ -> raise (TypeError { kind = TETypeRedefine; loc; msg = None })
-      | None -> Hashtbl.create 10
-    in
-    let fields = Array.of_list fields in
-    let field_types = Array.make (Array.length fields) (Ast.TVoid, Ast.dummy_loc) in
-    Array.iteri
-      (fun i f ->
-        let field_name, field_type, loc =
-          match f with
-          | Ast.Field (field_name, field_type, l) -> field_name, field_type, l
-        in
-        Hashtbl.add struct_field_tbl field_name i;
-        Array.set field_types i (field_type, loc))
-      fields;
-    Hashtbl.add defined_struct_fields name struct_field_tbl;
-    let def = { sname = name; sfields = field_types } in
+    if not (Util.is_pascal_case name)
+    then
+      raise
+        (TypeError
+           { kind = TECasing
+           ; msg = Some (Format.sprintf "Struct '%s' should be PascalCase\n  FIX: Rname to %s" name (Util.to_pascal_case name))
+           ; loc
+           })
+    else ();
+    let def = make_struct name fields loc in
     Hashtbl.add defined_structs name def;
     TypeDef (StructDef def, loc)
   | Ast.StructConstruct (name, fields, loc) ->
@@ -239,8 +300,7 @@ let rec typed_expr (e : Ast.expr) =
   | Variable (var_name, loc) ->
     let bound_var =
       try Hashtbl.find bound_variables var_name with
-      | Not_found ->
-        raise (TypeError { kind = TEVariableNotBound; msg = Some var_name; loc })
+      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
     in
     Variable (var_name, bound_var, loc)
   | Let (name, ty, expr, loc) ->
