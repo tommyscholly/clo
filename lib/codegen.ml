@@ -109,12 +109,6 @@ let rec codegen_expr = function
   (*   Llvm.build_call fn_ty fn args "" builder *)
   | Typed_ast.Let (let_expr, loc) ->
     let bound_expr = codegen_expr let_expr.lbinding in
-    (* let block = Llvm.insertion_block builder in *)
-    (* let parent_fn = Llvm.block_parent block in *)
-    (* print_endline "1"; *)
-    (* let tmp_builder = Llvm.builder_at context (Llvm.instr_succ parent_fn)  in *)
-    (* print_endline "2"; *)
-    (* let bound_ty = Llvm.type_of bound_expr in *)
     let alloc_type = map_type_def let_expr.ltype loc in
     let var = Llvm.build_alloca alloc_type let_expr.lname builder in
     let _ = Llvm.build_store bound_expr var builder in
@@ -143,7 +137,9 @@ let rec codegen_expr = function
        let generate_variant = function
          | Typed_ast.Tag name ->
            let tagged_variant = Llvm.named_struct_type context (ed.ename ^ name) in
-           Llvm.struct_set_body tagged_variant [| i8_type |] false
+           Llvm.struct_set_body tagged_variant [| i8_type |] false;
+           Llvm.dump_type tagged_variant;
+           print_newline ()
          | Typed_ast.Union (name, ty) ->
            let union_variant = Llvm.named_struct_type context (ed.ename ^ name) in
            Llvm.struct_set_body union_variant [| i8_type; map_type_def ty loc |] false;
@@ -153,7 +149,9 @@ let rec codegen_expr = function
            let field_types = Array.map (fun (ty, l) -> map_type_def ty l) sdef.sfields in
            let field_types = Array.append [| i8_type |] field_types in
            let struct_variant = Llvm.named_struct_type context (ed.ename ^ name) in
-           Llvm.struct_set_body struct_variant field_types false
+           Llvm.struct_set_body struct_variant field_types false;
+           Llvm.dump_type struct_variant;
+           print_newline ()
        in
        let enum_size = get_largest_size ed.evariants in
        let memory_length = enum_size / 8 in
@@ -171,7 +169,30 @@ let rec codegen_expr = function
        Llvm.const_null named_struct)
   | Typed_ast.TypeConstruct (tc, loc) ->
     (match tc with
-     | Typed_ast.EnumConst -> raise (CodegenError (NotSupported, loc))
+     | Typed_ast.EnumConst ec ->
+       (* let enum_type = Llvm.type_by_name llvm_module ec.ecname in *)
+       (* let enum_type = *)
+       (*   match enum_type with *)
+       (*   | Some t -> t *)
+       (*   | None -> raise (CodegenError (UnknownType, loc)) *)
+       (* in *)
+       let variant_type =
+         match Llvm.type_by_name llvm_module (ec.ecname ^ ec.ecvariant) with
+         | Some ty -> ty
+         | None -> raise (CodegenError (UnknownType, loc))
+       in
+       let enum_alloc = Llvm.build_alloca variant_type ec.ecname builder in
+       let gep = Llvm.build_struct_gep variant_type enum_alloc 0 "enum_tag_idx" builder in
+       let _ = Llvm.build_store (Llvm.const_int i8_type ec.ecidx) gep builder in
+       (* let cast = *)
+       (*   Llvm.build_bitcast *)
+       (*     enum_alloc *)
+       (*     variant_type *)
+       (*     (ec.ecname ^ "_" ^ ec.ecvariant) *)
+       (*     builder *)
+       (* in *)
+       (* Llvm.dump_module llvm_module; *)
+       enum_alloc
      | Typed_ast.StructConst sc ->
        let struct_type = Llvm.type_by_name llvm_module sc.scname in
        let struct_type =

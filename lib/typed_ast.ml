@@ -13,6 +13,7 @@ type type_error_kind =
   | TEFunctionNonExistant
   | TEInvalidFieldAccess
   | TECasing
+  | TEEnumVariantNonExistant
 (* this needs to hold a 'loc list' that points to every return type location *)
 
 exception
@@ -94,8 +95,19 @@ and struct_construct =
   ; scfields : construct_field array
   }
 
+and construct_data =
+  | UnionData of expr
+  | StructData of construct_field array
+
+and enum_construct =
+  { ecname : string
+  ; ecvariant : string
+  ; ecidx : int
+  ; ecdata : construct_data option
+  }
+
 and type_construct =
-  | EnumConst
+  | EnumConst of enum_construct
   | StructConst of struct_construct
 
 and field_access =
@@ -116,6 +128,7 @@ let defined_struct_fields =
 let bound_variables : (string, type_expr) Hashtbl.t = Hashtbl.create 10
 let string_of_type = Ast.string_of_type
 let defined_functions = Hashtbl.create 10 (* fn_name -> type_expr *)
+let defined_enums = Hashtbl.create 10 (* fn_name -> type_expr *)
 
 let size_of = function
   | Ast.TInt -> 32
@@ -134,6 +147,12 @@ let rec struct_size ?(sum = 0) fields =
     struct_size fs ~sum
 ;;
 
+let variant_name = function
+  | Tag n -> n
+  | Union (n, _) -> n
+  | Struct (n, _) -> n
+;;
+
 let type_of = function
   | Int _ -> Ast.TInt
   | Float _ -> Ast.TFloat
@@ -142,7 +161,7 @@ let type_of = function
   | Return (_, ty, _) -> ty
   | TypeConstruct (c, _) ->
     (match c with
-     | EnumConst -> Ast.TCustom "Enum"
+     | EnumConst e -> Ast.TCustom e.ecname
      | StructConst s -> TCustom s.scname)
   | TypeDef (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
   | Variable (_, ty, _) -> ty
@@ -184,6 +203,7 @@ let typecheck_field field_name struct_name fieldty loc =
          })
 ;;
 
+(* extracted because enums can contain structs *)
 let make_struct name fields loc =
   let struct_field_tbl =
     match Hashtbl.find_opt defined_struct_fields name with
@@ -202,15 +222,19 @@ let make_struct name fields loc =
       Array.set field_types i (field_type, loc))
     fields;
   Hashtbl.add defined_struct_fields name struct_field_tbl;
-  { sname = name; sfields = field_types }
+  let def = { sname = name; sfields = field_types } in
+  Hashtbl.add defined_structs name def;
+  def
 ;;
 
-let map_variant = function
+let map_variant ename variant =
+  match variant with
   | Ast.EnumVar (name, ty_opt, _) ->
     (match ty_opt with
      | Some ty -> Union (name, ty)
      | None -> Tag name)
-  | Ast.StructVar (name, fields, loc) -> Struct (name, make_struct name fields loc)
+  | Ast.StructVar (name, fields, loc) ->
+    Struct (name, make_struct (ename ^ name) fields loc)
 ;;
 
 let rec typed_expr (e : Ast.expr) =
@@ -221,12 +245,46 @@ let rec typed_expr (e : Ast.expr) =
       raise
         (TypeError
            { kind = TECasing
-           ; msg = Some (Format.sprintf "Enum '%s' should be PascalCase\n  FIX: Rename to %s" ename (Util.to_pascal_case ename))
+           ; msg =
+               Some
+                 (Format.sprintf
+                    "Enum '%s' should be PascalCase\n  FIX: Rename to %s"
+                    ename
+                    (Util.to_pascal_case ename))
            ; loc
            })
     else ();
-    let evariants = List.map map_variant variants in
+    let evariants = List.map (map_variant ename) variants in
+    Hashtbl.add defined_enums ename (Array.of_list evariants);
     TypeDef (EnumDef { ename; evariants }, loc)
+  | EnumConstruct (ename, evariant, data, loc) ->
+    let enum_fields =
+      try Hashtbl.find defined_enums ename with
+      | Not_found ->
+        raise (TypeError { kind = TETypeConstructWithoutDefine; loc; msg = None })
+    in
+    let idx = ref None in
+    Array.iteri
+      (fun i v -> if variant_name v = evariant then idx := Some i else ())
+      enum_fields;
+    let idx =
+      match !idx with
+      | Some i -> i
+      | None -> raise (TypeError { kind = TEEnumVariantNonExistant; msg = None; loc })
+    in
+    let data =
+      match data with
+      | Some d ->
+        (match d with
+         | Ast.UnionVariant e ->
+           let texpr = typed_expr e in
+           Some (UnionData texpr)
+         | Ast.StructVariant fields ->
+           Some (StructData (map_fields fields (ename ^ evariant) loc)))
+      | None -> None
+    in
+    TypeConstruct
+      (EnumConst { ecname = ename; ecvariant = evariant; ecdata = data; ecidx = idx }, loc)
   | FieldAccess (var_name, field_name, loc) ->
     let var_type =
       try Hashtbl.find bound_variables var_name with
@@ -263,36 +321,19 @@ let rec typed_expr (e : Ast.expr) =
       raise
         (TypeError
            { kind = TECasing
-           ; msg = Some (Format.sprintf "Struct '%s' should be PascalCase\n  FIX: Rname to %s" name (Util.to_pascal_case name))
+           ; msg =
+               Some
+                 (Format.sprintf
+                    "Struct '%s' should be PascalCase\n  FIX: Rname to %s"
+                    name
+                    (Util.to_pascal_case name))
            ; loc
            })
     else ();
     let def = make_struct name fields loc in
-    Hashtbl.add defined_structs name def;
     TypeDef (StructDef def, loc)
   | Ast.StructConstruct (name, fields, loc) ->
-    let struct_field_tbl =
-      try Hashtbl.find defined_struct_fields name with
-      | Not_found ->
-        raise (TypeError { kind = TETypeConstructWithoutDefine; loc; msg = None })
-    in
-    let fields = Array.of_list fields in
-    if Array.length fields != Hashtbl.length struct_field_tbl
-    then raise (TypeError { kind = TEFieldLengthMismatch; loc; msg = None })
-    else ();
-    let mapped_fields = Array.make (Array.length fields) (Int 0, Ast.dummy_loc) in
-    Array.iter
-      (fun (field_name, field_expr, field_loc) ->
-        let idx =
-          try Hashtbl.find struct_field_tbl field_name with
-          | Not_found ->
-            raise (TypeError { kind = TEFieldNonExistant; loc = field_loc; msg = None })
-        in
-        let expr = typed_expr field_expr in
-        let fieldty = type_of expr in
-        typecheck_field field_name name fieldty field_loc;
-        Array.set mapped_fields idx (expr, field_loc))
-      fields;
+    let mapped_fields = map_fields fields name loc in
     TypeConstruct (StructConst { scname = name; scfields = mapped_fields }, loc)
   | Int i -> Int i
   | Float f -> Float f
@@ -416,4 +457,29 @@ let rec typed_expr (e : Ast.expr) =
     let texpr = typed_expr expr in
     let ty = type_of texpr in
     Return (texpr, ty, loc)
+
+and map_fields fields name loc =
+  let struct_field_tbl =
+    try Hashtbl.find defined_struct_fields name with
+    | Not_found ->
+      raise (TypeError { kind = TETypeConstructWithoutDefine; loc; msg = None })
+  in
+  let fields = Array.of_list fields in
+  if Array.length fields != Hashtbl.length struct_field_tbl
+  then raise (TypeError { kind = TEFieldLengthMismatch; loc; msg = None })
+  else ();
+  let mapped_fields = Array.make (Array.length fields) (Int 0, Ast.dummy_loc) in
+  Array.iter
+    (fun (field_name, field_expr, field_loc) ->
+      let idx =
+        try Hashtbl.find struct_field_tbl field_name with
+        | Not_found ->
+          raise (TypeError { kind = TEFieldNonExistant; loc = field_loc; msg = None })
+      in
+      let expr = typed_expr field_expr in
+      let fieldty = type_of expr in
+      typecheck_field field_name name fieldty field_loc;
+      Array.set mapped_fields idx (expr, field_loc))
+    fields;
+  mapped_fields
 ;;

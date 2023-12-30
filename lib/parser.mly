@@ -101,6 +101,7 @@ enum_type_tag:
 
 enum_variant:
     | name=IDENT; ty=option(enum_type_tag) { EnumVar (name, ty, ($startpos, $endpos)) }
+    | name=IDENT; fields=struct_expr { StructVar (name, fields, ($startpos, $endpos)) }
     ;
 
 enum_expr:
@@ -119,6 +120,15 @@ struct_construct:
     | name=IDENT; LBRACE; fields=list(struct_construct_field); RBRACE { StructConstruct (name, fields, ($startpos, $endpos))}
     ;
 
+enum_data:
+    | LPAREN; e=expr; RPAREN { UnionVariant e }
+    | LBRACE; fields=list(struct_construct_field); RBRACE  { StructVariant fields }
+    ;
+
+enum_construct:
+    | name=IDENT; COLON; variant_name=IDENT; data=option(enum_data) { EnumConstruct (name, variant_name, data, ($startpos, $endpos)) }
+    ;
+
 expr:
     | LPAREN; e=expr RPAREN {e}
     | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, ($startpos, $endpos)) }
@@ -129,6 +139,7 @@ expr:
     | struct_def=struct_defn { struct_def }
     | enum_def=enum_defn { enum_def }
     | sc=struct_construct { sc }
+    | ec=enum_construct { ec }
     | id=IDENT { Variable (id, ($startpos, $endpos)) }
     | i=INT { Int i }
     | f=FLOAT { Float f }

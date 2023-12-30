@@ -71,6 +71,13 @@ let typed file_contents e =
   | Typed_ast.TypeError te ->
     let _ =
       match te.kind with
+      | TEEnumVariantNonExistant ->
+        Reporting.Renderer.render_error
+          file_contents
+          "Enum variant nonexistant"
+          te.loc
+          te.msg
+          None
       | TECasing ->
         Reporting.Renderer.render_error file_contents "Casing error" te.loc te.msg None
       | TETypeDefAsValue ->

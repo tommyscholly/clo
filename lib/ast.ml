@@ -51,7 +51,12 @@ type expr =
   | Struct of string * field list * loc
   | Enum of string * variant list * loc
   | StructConstruct of string * construct_field list * loc
+  | EnumConstruct of string * string * construct_variant option * loc
   | FieldAccess of string * string * loc (* name.field *)
 
 and fndef = string * param list * type_expr option * expr list
 and construct_field = string * expr * loc
+
+and construct_variant =
+  | UnionVariant of expr
+  | StructVariant of construct_field list
