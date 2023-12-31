@@ -20,8 +20,7 @@ fn matcher(thing: E) {
     | E:Int(i) -> print("%d", i),
     | E:Bool(b) -> print("%d", b),
     | E:Struct s -> print("%d", s.field),
-    | E:None -> print("None"),
-    ;
+    | E:None -> print("None");
 }
 
 fn adder(one: int, two: int) -> int {

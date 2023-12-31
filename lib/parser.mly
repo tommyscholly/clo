@@ -141,11 +141,11 @@ match_case_kind:
 
 (* these are basically enum data with identifiers *)
 match_case:
-    | PIPE; name=IDENT; COLON; variant_name=IDENT; kind=option(match_case_kind); ARROW; e=expr; COMMA { name, variant_name, kind, e, ($startpos, $endpos)}
+    | PIPE; name=IDENT; COLON; variant_name=IDENT; kind=option(match_case_kind); ARROW; e=expr { name, variant_name, kind, e, ($startpos, $endpos)}
     ;
 
 match_cases:
-    | cases=list(match_case) { cases }
+    | cases=separated_list(COMMA, match_case) { cases }
     ;
 
 match_statement:

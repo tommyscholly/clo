@@ -1,4 +1,4 @@
-open Kali.Driver
+open Clo.Driver
 module Sys = Core.Sys
 
 type command_line_args = { input_file : string }
