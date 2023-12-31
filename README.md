@@ -1,4 +1,4 @@
-# Cello Language
+# clo
 
 Hobby programming language impl using OCaml and LLVM
 
