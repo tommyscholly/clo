@@ -15,6 +15,15 @@ enum E {
     None
 }
 
+fn matcher(thing: E) {
+    match thing with
+    | E:Int(i) -> print("%d", i),
+    | E:Bool(b) -> print("%d", b),
+    | E:Struct s -> print("%d", s.field),
+    | E:None -> print("None"),
+    ;
+}
+
 fn adder(one: int, two: int) -> int {
     return one + two;
 }
@@ -29,6 +38,7 @@ fn main() {
         b: 4;
     };
     let var2 = 1;
+    matcher(e);
     print("%d", adder(var.field, var2));
 }
 

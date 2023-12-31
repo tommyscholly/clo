@@ -25,6 +25,10 @@
 %token SEMICOLON
 %token EQUAL
 %token DOT
+%token MATCH
+%token WITH
+%token PIPE
+%token UNDERSCORE
 
 %token STRUCT
 %token ENUM
@@ -121,12 +125,31 @@ struct_construct:
     ;
 
 enum_data:
-    | LPAREN; e=expr; RPAREN { UnionVariant e }
+    | LPAREN; e=separated_list(COMMA, expr); RPAREN { UnionVariant e }
     | LBRACE; fields=list(struct_construct_field); RBRACE  { StructVariant fields }
     ;
 
 enum_construct:
     | name=IDENT; COLON; variant_name=IDENT; data=option(enum_data) { EnumConstruct (name, variant_name, data, ($startpos, $endpos)) }
+    ;
+
+match_case_kind:
+    | LPAREN; is=separated_list(COMMA, IDENT); RPAREN { UnionMatch (is, ($startpos, $endpos)) }
+    | struct_name=IDENT; { StructMatch (struct_name, ($startpos, $endpos)) }
+    | UNDERSCORE; { DefaultMatch }
+    ;
+
+(* these are basically enum data with identifiers *)
+match_case:
+    | PIPE; name=IDENT; COLON; variant_name=IDENT; kind=option(match_case_kind); ARROW; e=expr; COMMA { name, variant_name, kind, e, ($startpos, $endpos)}
+    ;
+
+match_cases:
+    | cases=list(match_case) { cases }
+    ;
+
+match_statement:
+    | MATCH; e=expr; WITH; cases=match_cases { Match (e, cases, ($startpos, $endpos)) }
     ;
 
 expr:
@@ -140,6 +163,7 @@ expr:
     | enum_def=enum_defn { enum_def }
     | sc=struct_construct { sc }
     | ec=enum_construct { ec }
+    | m = match_statement { m }
     | id=IDENT { Variable (id, ($startpos, $endpos)) }
     | i=INT { Int i }
     | f=FLOAT { Float f }

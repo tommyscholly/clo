@@ -53,10 +53,18 @@ type expr =
   | StructConstruct of string * construct_field list * loc
   | EnumConstruct of string * string * construct_variant option * loc
   | FieldAccess of string * string * loc (* name.field *)
+  | Match of expr * match_case list * loc
 
 and fndef = string * param list * type_expr option * expr list
 and construct_field = string * expr * loc
 
 and construct_variant =
-  | UnionVariant of expr
+  | UnionVariant of expr list
   | StructVariant of construct_field list
+
+and match_case = string * string * match_case_kind option * expr * loc
+
+and match_case_kind =
+  | UnionMatch of string list * loc
+  | StructMatch of string * loc (* struct is just allocated to an identifier *)
+  | DefaultMatch

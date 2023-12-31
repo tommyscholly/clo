@@ -6,7 +6,7 @@ let fprintf = Core.fprintf
 
 let print_position outx lexbuf =
   let pos = lexbuf.lex_curr_p in
-  fprintf outx "%s:%d:%d" pos.pos_fname pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
+  fprintf outx "%s:%d:%d" pos.pos_fname pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 2)
 ;;
 
 let report_error msg lexbuf =
@@ -71,6 +71,8 @@ let typed file_contents e =
   | Typed_ast.TypeError te ->
     let _ =
       match te.kind with
+      | TEMatchInType ->
+        Reporting.Renderer.render_error file_contents "Matching on not supported type" te.loc te.msg None
       | TEEnumVariantNonExistant ->
         Reporting.Renderer.render_error
           file_contents

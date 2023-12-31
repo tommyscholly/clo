@@ -36,6 +36,8 @@ rule read =
   | "struct" { STRUCT }
   | "enum"   { ENUM }
   | "void"   { TYPE_VOID }
+  | "match"  { MATCH }
+  | "with"   { WITH }
   | "int"    { TYPE_INT }
   | "bool"   { TYPE_BOOL }
   | "+"      { PLUS }
@@ -45,6 +47,8 @@ rule read =
   | "{"      { LBRACE }
   | "}"      { RBRACE }
   | "->"     { ARROW }
+  | "|"      { PIPE }
+  | "_"      { UNDERSCORE }
   | ","      { COMMA }
   | ":"      { COLON }
   | ";"      { SEMICOLON }

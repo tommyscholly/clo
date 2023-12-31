@@ -137,21 +137,21 @@ let rec codegen_expr = function
        let generate_variant = function
          | Typed_ast.Tag name ->
            let tagged_variant = Llvm.named_struct_type context (ed.ename ^ name) in
-           Llvm.struct_set_body tagged_variant [| i8_type |] false;
-           Llvm.dump_type tagged_variant;
-           print_newline ()
+           Llvm.struct_set_body tagged_variant [| i8_type |] false
+           (* Llvm.dump_type tagged_variant; *)
+           (* print_newline () *)
          | Typed_ast.Union (name, ty) ->
            let union_variant = Llvm.named_struct_type context (ed.ename ^ name) in
-           Llvm.struct_set_body union_variant [| i8_type; map_type_def ty loc |] false;
-           Llvm.dump_type union_variant;
-           print_newline ()
+           Llvm.struct_set_body union_variant [| i8_type; map_type_def ty loc |] false
+           (* Llvm.dump_type union_variant; *)
+           (* print_newline () *)
          | Typed_ast.Struct (name, sdef) ->
            let field_types = Array.map (fun (ty, l) -> map_type_def ty l) sdef.sfields in
            let field_types = Array.append [| i8_type |] field_types in
            let struct_variant = Llvm.named_struct_type context (ed.ename ^ name) in
-           Llvm.struct_set_body struct_variant field_types false;
-           Llvm.dump_type struct_variant;
-           print_newline ()
+           Llvm.struct_set_body struct_variant field_types false
+         (* Llvm.dump_type struct_variant; *)
+         (* print_newline () *)
        in
        let enum_size = get_largest_size ed.evariants in
        let memory_length = enum_size / 8 in
@@ -170,12 +170,9 @@ let rec codegen_expr = function
   | Typed_ast.TypeConstruct (tc, loc) ->
     (match tc with
      | Typed_ast.EnumConst ec ->
-       (* let enum_type = Llvm.type_by_name llvm_module ec.ecname in *)
-       (* let enum_type = *)
-       (*   match enum_type with *)
-       (*   | Some t -> t *)
-       (*   | None -> raise (CodegenError (UnknownType, loc)) *)
-       (* in *)
+       (* we dont need to bitcast anymore with opaque pointers *)
+       (* we just check tag and gep to the data segment *)
+       (* https://releases.llvm.org/16.0.0/docs/OpaquePointers.html *)
        let variant_type =
          match Llvm.type_by_name llvm_module (ec.ecname ^ ec.ecvariant) with
          | Some ty -> ty
@@ -184,14 +181,41 @@ let rec codegen_expr = function
        let enum_alloc = Llvm.build_alloca variant_type ec.ecname builder in
        let gep = Llvm.build_struct_gep variant_type enum_alloc 0 "enum_tag_idx" builder in
        let _ = Llvm.build_store (Llvm.const_int i8_type ec.ecidx) gep builder in
-       (* let cast = *)
-       (*   Llvm.build_bitcast *)
-       (*     enum_alloc *)
-       (*     variant_type *)
-       (*     (ec.ecname ^ "_" ^ ec.ecvariant) *)
-       (*     builder *)
-       (* in *)
-       (* Llvm.dump_module llvm_module; *)
+       (* fill enum data *)
+       let _ =
+         match ec.ecdata with
+         | Some data ->
+           (match data with
+            | Typed_ast.UnionData exprs ->
+              List.iteri
+                (fun i e ->
+                  let data_gep =
+                    Llvm.build_struct_gep
+                      variant_type
+                      enum_alloc
+                      (i + 1)
+                      "enum_data"
+                      builder
+                  in
+                  let _ = Llvm.build_store (codegen_expr e) data_gep builder in
+                  ())
+                exprs
+            | Typed_ast.StructData fields ->
+              Array.iteri
+                (fun i (e, _) ->
+                  let field_gep =
+                    Llvm.build_struct_gep
+                      variant_type
+                      enum_alloc
+                      (i + 1)
+                      "enum_field"
+                      builder
+                  in
+                  let _ = Llvm.build_store (codegen_expr e) field_gep builder in
+                  ())
+                fields)
+         | None -> ()
+       in
        enum_alloc
      | Typed_ast.StructConst sc ->
        let struct_type = Llvm.type_by_name llvm_module sc.scname in
@@ -238,6 +262,7 @@ let rec codegen_expr = function
      | Ast.TInt | Ast.TBool ->
        Llvm.build_load (map_type_def faccess.ffieldtype loc) gep "loadfield" builder
      | _ -> raise (CodegenError (NotSupported, loc)))
+  | Typed_ast.Match(_, _, loc) -> raise (CodegenError (NotSupported, loc))
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)

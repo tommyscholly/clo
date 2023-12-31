@@ -14,6 +14,7 @@ type type_error_kind =
   | TEInvalidFieldAccess
   | TECasing
   | TEEnumVariantNonExistant
+  | TEMatchInType
 (* this needs to hold a 'loc list' that points to every return type location *)
 
 exception
@@ -38,6 +39,7 @@ type expr =
   | TypeConstruct of
       type_construct * loc (* something like thing = StructName { field_one: string} *)
   | FieldAccess of field_access * loc
+  | Match of expr * type_expr * loc
 
 and call =
   { cname : string
@@ -96,7 +98,7 @@ and struct_construct =
   }
 
 and construct_data =
-  | UnionData of expr
+  | UnionData of expr list
   | StructData of construct_field array
 
 and enum_construct =
@@ -170,6 +172,7 @@ let type_of = function
   | Binop (b, _) -> b.btype
   | FnDef (fndef, _) -> fndef.fnret
   | FieldAccess (faccess, _) -> faccess.ffieldtype
+  | Match (_, ty, _) -> ty
 ;;
 
 let typecheck_field field_name struct_name fieldty loc =
@@ -276,9 +279,9 @@ let rec typed_expr (e : Ast.expr) =
       match data with
       | Some d ->
         (match d with
-         | Ast.UnionVariant e ->
-           let texpr = typed_expr e in
-           Some (UnionData texpr)
+         | Ast.UnionVariant es ->
+           let texprs = List.map typed_expr es in
+           Some (UnionData texprs)
          | Ast.StructVariant fields ->
            Some (StructData (map_fields fields (ename ^ evariant) loc)))
       | None -> None
@@ -457,6 +460,15 @@ let rec typed_expr (e : Ast.expr) =
     let texpr = typed_expr expr in
     let ty = type_of texpr in
     Return (texpr, ty, loc)
+  | Match (expr, _, loc) ->
+    let texpr = typed_expr expr in
+    let ty = type_of texpr in
+    if match ty with
+       | Ast.TCustom _ -> true
+       | _ -> false
+    then ()
+    else raise (TypeError { kind = TEMatchInType; msg = None; loc });
+    Match (texpr, ty, loc)
 
 and map_fields fields name loc =
   let struct_field_tbl =
