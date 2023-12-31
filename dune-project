@@ -1,13 +1,13 @@
 (lang dune 3.12)
 
-(name kali)
+(name clo)
 
 (generate_opam_files true)
 
 (using menhir 2.1)
 
 (package
- (name kali)
+ (name clo)
  (synopsis "A short synopsis")
  (description "A longer description")
  (depends ocaml dune)

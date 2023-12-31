@@ -1,7 +1,7 @@
 (executable
- (public_name kali)
+ (public_name clo)
  (name main)
- (libraries kali)
+ (libraries clo)
  (preprocess
   (pps ppx_deriving.show ppx_deriving_cmdliner)))
 

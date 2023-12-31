@@ -1,5 +1,5 @@
 (library
- (name kali)
+ (name clo)
  (libraries reporting core llvm llvm.analysis))
 
 (menhir
