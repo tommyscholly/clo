@@ -32,7 +32,8 @@ let map_type_def ty loc =
   | Ast.TBool -> i8_type
   | Ast.TCustom name ->
     (match Llvm.type_by_name llvm_module name with
-     | Some ty -> ty
+     (* | Some ty -> ty *)
+     | Some _ -> Llvm.pointer_type context
      | None -> raise (CodegenError (UnknownType, loc)))
   | _ -> raise (CodegenError (UnknownType, loc))
 ;;
@@ -123,8 +124,16 @@ let rec codegen_expr = function
          | v :: vs ->
            (match v with
             | Typed_ast.Tag _ -> get_largest_size ~size vs
-            | Typed_ast.Union (_, ty) ->
-              let ty_size = Typed_ast.size_of ty in
+            | Typed_ast.Union (_, tys) ->
+              let ty_size =
+                List.fold_left
+                  (fun size ty ->
+                    let tsize = Typed_ast.size_of ty in
+                    size + tsize)
+                  0
+                  tys
+              in
+              (* let ty_size = Typed_ast.size_of ty in *)
               if ty_size > size
               then get_largest_size ~size:ty_size vs
               else get_largest_size ~size vs
@@ -140,9 +149,11 @@ let rec codegen_expr = function
            Llvm.struct_set_body tagged_variant [| i8_type |] false
            (* Llvm.dump_type tagged_variant; *)
            (* print_newline () *)
-         | Typed_ast.Union (name, ty) ->
+         | Typed_ast.Union (name, tys) ->
            let union_variant = Llvm.named_struct_type context (ed.ename ^ ":" ^ name) in
-           Llvm.struct_set_body union_variant [| i8_type; map_type_def ty loc |] false
+           let mapped_tys = List.map (fun ty -> map_type_def ty loc) tys in
+           let body = Array.of_list (i8_type :: mapped_tys) in
+           Llvm.struct_set_body union_variant body false
            (* Llvm.dump_type union_variant; *)
            (* print_newline () *)
          | Typed_ast.Struct (name, sdef) ->
@@ -262,7 +273,86 @@ let rec codegen_expr = function
      | Ast.TInt | Ast.TBool ->
        Llvm.build_load (map_type_def faccess.ffieldtype loc) gep "loadfield" builder
      | _ -> raise (CodegenError (NotSupported, loc)))
-  | Typed_ast.Match (_, loc) -> raise (CodegenError (NotSupported, loc))
+  | Typed_ast.Match (m, loc) ->
+    let parent_fn = Llvm.block_parent (Llvm.insertion_block builder) in
+    let expr = codegen_expr m.mexpr in
+    let has_default = ref false in
+    let default_block = Llvm.append_block context "default" parent_fn in
+    let bottom_block = Llvm.append_block context "match_finish" parent_fn in
+    let case = Llvm.build_load i32_type expr "case" builder in
+    let switch = Llvm.build_switch case default_block (List.length m.mcases) builder in
+    let generate_case_block (case : Typed_ast.match_case) =
+      let type_name = Typed_ast.string_of_type case.casety in
+      let to_remove =
+        match case.casekind with
+        | Typed_ast.EnumMatch kind ->
+          let enum_type =
+            match Llvm.type_by_name llvm_module type_name with
+            | Some ty -> ty
+            | None -> raise (CodegenError (UnknownType, loc))
+          in
+          let make_match_block () =
+            let block =
+              Llvm.append_block
+                context
+                (Typed_ast.string_of_type case.casety ^ "_case")
+                parent_fn
+            in
+            Llvm.position_at_end block builder;
+            block
+          in
+          (match kind with
+           | Typed_ast.UnionMatch (ids, _) ->
+             let block = make_match_block () in
+             let enum_id =
+               Llvm.const_int i32_type (Typed_ast.get_variant_id_for_name type_name)
+             in
+             Llvm.add_case switch enum_id block;
+             List.mapi
+               (fun i (id, _) ->
+                 let gep = Llvm.build_struct_gep enum_type expr (i + 1) id builder in
+                 Hashtbl.add named_values id gep;
+                 id)
+               ids
+           | StructMatch (name, _) ->
+             let block = make_match_block () in
+             let enum_id =
+               Llvm.const_int i32_type (Typed_ast.get_variant_id_for_name type_name)
+             in
+             Llvm.add_case switch enum_id block;
+             let gep = Llvm.build_struct_gep enum_type expr 1 name builder in
+             Hashtbl.add named_values name gep;
+             [ name ]
+           | TagMatch ->
+             let block = make_match_block () in
+             let enum_id =
+               Llvm.const_int i32_type (Typed_ast.get_variant_id_for_name type_name)
+             in
+             Llvm.add_case switch enum_id block;
+             [])
+        | Typed_ast.DefaultMatch ->
+          has_default := true;
+          Llvm.position_at_end default_block builder;
+          []
+      in
+      let _ = codegen_expr case.caseexpr in
+      let _ = Llvm.build_br bottom_block builder in
+      List.iter (fun id -> Hashtbl.remove named_values id) to_remove
+    in
+    List.iter generate_case_block m.mcases;
+    print_endline (string_of_bool !has_default);
+    (match !has_default with
+     | true -> ()
+     | false ->
+       Llvm.position_at_end default_block builder;
+       let _ = Llvm.build_unreachable builder in
+       ());
+    let blocks = Llvm.basic_blocks parent_fn in
+    let last_block = Array.get blocks (Array.length blocks - 1) in
+    Llvm.move_block_after last_block bottom_block;
+    Llvm.position_at_end bottom_block builder;
+    Llvm.dump_module llvm_module;
+    Llvm.const_null i32_type
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)

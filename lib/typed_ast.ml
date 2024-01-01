@@ -42,11 +42,13 @@ type expr =
   | Match of match_expr * loc
 
 and enum_match_kind =
-  | UnionMatch of string list * loc
+  | UnionMatch of (string * type_expr) list * loc
   | StructMatch of string * loc (* struct is just allocated to an identifier *)
   | TagMatch
 
-and match_case_kind = EnumMatch of enum_match_kind | DefaultMatch
+and match_case_kind =
+  | EnumMatch of enum_match_kind
+  | DefaultMatch
 
 and match_case =
   { casety : type_expr
@@ -99,9 +101,10 @@ and enum_def =
   ; evariants : variant list
   }
 
+(* this type info isnt currently being used, as i added it in for something that didn't need it. we'll use it for type checking though later *)
 and variant =
   | Tag of string
-  | Union of string * type_expr
+  | Union of string * type_expr list
   | Struct of string * struct_def
 
 and field = type_expr * loc
@@ -151,7 +154,8 @@ let defined_struct_fields =
 let bound_variables : (string, type_expr) Hashtbl.t = Hashtbl.create 10
 let string_of_type = Ast.string_of_type
 let defined_functions = Hashtbl.create 10 (* fn_name -> type_expr *)
-let defined_enums = Hashtbl.create 10 (* fn_name -> array evariant *)
+let defined_enums = Hashtbl.create 10 (* enum -> array evariant *)
+let variant_name_to_idx = Hashtbl.create 10 (* enum_name -> (variant name, int) hashtbl *)
 
 let size_of = function
   | Ast.TInt -> 32
@@ -251,14 +255,25 @@ let make_struct name fields loc =
   def
 ;;
 
-let map_variant ename variant =
+let get_variant_id_for_name name =
+  let split = String.split_on_char ':' name in
+  let enum_name = List.hd split in
+  let enum_variant = List.hd (List.tl split) in
+  let tbl = Hashtbl.find variant_name_to_idx enum_name in
+  Hashtbl.find tbl enum_variant
+;;
+
+let map_variant tbl ename i variant =
   match variant with
   | Ast.EnumVar (name, ty_opt, _) ->
+    Hashtbl.add tbl name i;
     (match ty_opt with
-     | Some ty -> Union (name, ty)
+     | Some ty -> Union (name, [ ty ])
      | None -> Tag name)
   | Ast.StructVar (name, fields, loc) ->
-    Struct (name, make_struct (ename ^ name) fields loc)
+    let type_name = ename ^ ":" ^ name in
+    Hashtbl.add tbl name i;
+    Struct (name, (make_struct type_name) fields loc)
 ;;
 
 let rec typed_expr (e : Ast.expr) =
@@ -278,8 +293,11 @@ let rec typed_expr (e : Ast.expr) =
            ; loc
            })
     else ();
-    let evariants = List.map (map_variant ename) variants in
-    Hashtbl.add defined_enums ename (Array.of_list evariants);
+    let variant_name_to_id_table = Hashtbl.create (List.length variants) in
+    let evariants = List.mapi (map_variant variant_name_to_id_table ename) variants in
+    let evariants_arr = Array.of_list evariants in
+    Hashtbl.add defined_enums ename evariants_arr;
+    Hashtbl.add variant_name_to_idx ename variant_name_to_id_table;
     TypeDef (EnumDef { ename; evariants }, loc)
   | EnumConstruct (ename, evariant, data, loc) ->
     let enum_fields =
@@ -304,12 +322,16 @@ let rec typed_expr (e : Ast.expr) =
            let texprs = List.map typed_expr es in
            Some (UnionData texprs)
          | Ast.StructVariant fields ->
-           Some (StructData (map_fields fields (ename ^ evariant) loc)))
+           Some (StructData (map_fields fields (ename ^ ":" ^ evariant) loc)))
       | None -> None
     in
     TypeConstruct
       (EnumConst { ecname = ename; ecvariant = evariant; ecdata = data; ecidx = idx }, loc)
   | FieldAccess (var_name, field_name, loc) ->
+    (* Hashtbl.iter *)
+    (*   (fun key value -> *)
+    (*     print_endline (Format.sprintf "%s -> %s" key (*string_of_type value*) value.sname)) *)
+    (*   defined_structs; *)
     let var_type =
       try Hashtbl.find bound_variables var_name with
       | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
@@ -495,28 +517,62 @@ let rec typed_expr (e : Ast.expr) =
     then ()
     else raise (TypeError { kind = TEMatchInType; msg = None; loc });
     let map_case (case_kind, case_expr, loc) =
-      let caseexpr = typed_expr case_expr in
-      let casety, casekind =
+      let casety, casekind, bound_vars =
         match case_kind with
         (* case is an enum match *)
         | Ast.EnumMatch (enum_name, enum_variant, kind) ->
           let case_ty = Ast.TCustom (enum_name ^ ":" ^ enum_variant) in
-          let casekind =
+          let variants =
+            try Hashtbl.find defined_enums enum_name with
+            | Not_found ->
+              raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+          in
+          let casekind, bound_vars =
             (* kind is an option, where if it is None, then it is "Type:Tag" with no data *)
             match kind with
             | Some k ->
               (match k with
-               | Ast.UnionMatch (ss, loc) -> UnionMatch (ss, loc)
-               | Ast.StructMatch (s, loc) -> StructMatch (s, loc)
-               )
-            | None -> TagMatch
+               | Ast.UnionMatch (ss, loc) ->
+                 let variant_types =
+                   List.hd
+                     (List.filter_map
+                        (fun variant ->
+                          match variant with
+                          | Union (name, tys) ->
+                            if name = enum_variant then Some tys else None
+                          | _ -> None)
+                        (Array.to_list variants))
+                 in
+                 let typed_ids =
+                   List.map
+                     (fun (s, ty) ->
+                       Hashtbl.add bound_variables s case_ty;
+                       s, ty)
+                     (List.combine ss variant_types)
+                 in
+                 UnionMatch (typed_ids, loc), ss
+               | Ast.StructMatch (s, loc) ->
+                 Hashtbl.add bound_variables s case_ty;
+                 StructMatch (s, loc), [ s ])
+            | None -> TagMatch, []
           in
-          case_ty, EnumMatch casekind
-        | Ast.DefaultMatch -> Ast.TCustom "_", DefaultMatch
+          case_ty, EnumMatch casekind, bound_vars
+        | Ast.DefaultMatch -> Ast.TCustom "_", DefaultMatch, []
       in
+      let caseexpr = typed_expr case_expr in
+      List.iter (fun s -> Hashtbl.remove bound_variables s) bound_vars;
       { casety; caseexpr; caseloc = loc; casekind }
     in
     let mcases = List.map map_case cases in
+    let mcases =
+      List.sort
+        (fun a b ->
+          match a.casekind, b.casekind with
+          | _, DefaultMatch -> -1
+          | DefaultMatch, _ -> 1
+          | _ -> 0)
+        mcases
+    in
     Match ({ mexpr = texpr; mty = ty; mcases }, loc)
 
 and map_fields fields name loc =

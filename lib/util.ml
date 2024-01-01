@@ -33,13 +33,9 @@ let to_pascal_case (s : string) : string =
 
 let index_of (arr : 'a array) (target : 'a) : int option =
   let rec find_index index =
-    if index < Array.length arr then
-      if arr.(index) = target then
-        Some index
-      else
-        find_index (index + 1)
-    else
-      None
+    if index < Array.length arr
+    then if arr.(index) = target then Some index else find_index (index + 1)
+    else None
   in
   find_index 0
 ;;
