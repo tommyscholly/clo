@@ -144,18 +144,27 @@ and field_access =
   }
 
 let defined_structs : (string, struct_def) Hashtbl.t =
-  Hashtbl.create 10 (* struct_name -> struct_def *)
+  Hashtbl.create 10 (* struct name -> struct_def *)
 ;;
 
 let defined_struct_fields =
-  Hashtbl.create 10 (* struct_name -> HashTbl<field_name, idx> *)
+  Hashtbl.create 10 (* struct name -> (field name, idx) hashtbl *)
 ;;
 
 let bound_variables : (string, type_expr) Hashtbl.t = Hashtbl.create 10
 let string_of_type = Ast.string_of_type
-let defined_functions = Hashtbl.create 10 (* fn_name -> type_expr *)
-let defined_enums = Hashtbl.create 10 (* enum -> array evariant *)
-let variant_name_to_idx = Hashtbl.create 10 (* enum_name -> (variant name, int) hashtbl *)
+
+let defined_functions : (string, fn_def) Hashtbl.t =
+  Hashtbl.create 10 (* fn name -> fn_def *)
+;;
+
+let defined_enums : (string, variant array) Hashtbl.t =
+  Hashtbl.create 10 (* enum name -> array evariant *)
+;;
+
+let variant_name_to_idx : (string, (string, int) Hashtbl.t) Hashtbl.t =
+  Hashtbl.create 10 (* enum name -> (variant name, int) hashtbl *)
+;;
 
 let size_of = function
   | Ast.TInt -> 32
