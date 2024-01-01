@@ -1,4 +1,3 @@
-false
 ; ModuleID = 'jit'
 source_filename = "jit"
 

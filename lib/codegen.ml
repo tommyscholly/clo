@@ -323,7 +323,6 @@ let rec codegen_expr = function
       List.iter (fun id -> Hashtbl.remove named_values id) to_remove
     in
     List.iter generate_case_block m.mcases;
-    print_endline (string_of_bool !has_default);
     (match !has_default with
      | true -> ()
      | false ->
