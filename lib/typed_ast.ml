@@ -15,6 +15,7 @@ type type_error_kind =
   | TECasing
   | TEEnumVariantNonExistant
   | TEMatchInType
+  | TEAssign
 (* this needs to hold a 'loc list' that points to every return type location *)
 
 exception
@@ -40,6 +41,13 @@ type expr =
       type_construct * loc (* something like thing = StructName { field_one: string} *)
   | FieldAccess of field_access * loc
   | Match of match_expr * loc
+  | Assignment of assignment_expr * loc
+
+and assignment_expr =
+  { aslhs : string (* id *)
+  ; asrhs : expr
+  ; asty : type_expr
+  }
 
 and enum_match_kind =
   | UnionMatch of (string * type_expr) list * loc
@@ -151,7 +159,10 @@ let defined_struct_fields =
   Hashtbl.create 10 (* struct name -> (field name, idx) hashtbl *)
 ;;
 
-let bound_variables : (string, type_expr) Hashtbl.t = Hashtbl.create 10
+let bound_variables : (string, bool * type_expr) Hashtbl.t =
+  Hashtbl.create 10 (* bool is for mutability *)
+;;
+
 let string_of_type = Ast.string_of_type
 
 let defined_functions : (string, fn_def) Hashtbl.t =
@@ -207,6 +218,7 @@ let type_of = function
   | FnDef (fndef, _) -> fndef.fnret
   | FieldAccess (faccess, _) -> faccess.ffieldtype
   | Match (m, _) -> m.mty
+  | Assignment (a, _) -> a.asty
 ;;
 
 let typecheck_field field_name struct_name fieldty loc =
@@ -341,7 +353,7 @@ let rec typed_expr (e : Ast.expr) =
     (*   (fun key value -> *)
     (*     print_endline (Format.sprintf "%s -> %s" key (*string_of_type value*) value.sname)) *)
     (*   defined_structs; *)
-    let var_type =
+    let _, var_type =
       try Hashtbl.find bound_variables var_name with
       | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
     in
@@ -388,14 +400,14 @@ let rec typed_expr (e : Ast.expr) =
     else ();
     let def = make_struct name fields loc in
     TypeDef (StructDef def, loc)
-  | Ast.StructConstruct (name, fields, loc) ->
+  | StructConstruct (name, fields, loc) ->
     let mapped_fields = map_fields fields name loc in
     TypeConstruct (StructConst { scname = name; scfields = mapped_fields }, loc)
   | Int i -> Int i
   | Float f -> Float f
   | Bool b -> Bool b
   | Variable (var_name, loc) ->
-    let bound_var =
+    let _, bound_var =
       try Hashtbl.find bound_variables var_name with
       | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
     in
@@ -427,7 +439,7 @@ let rec typed_expr (e : Ast.expr) =
         else ty
       | None -> lbinding_type
     in
-    Hashtbl.add bound_variables name lbinding_type;
+    Hashtbl.add bound_variables name (mut, lbinding_type);
     (* be able to look up bindings to find and validate field accesses *)
     Let ({ lname = name; lmut = mut; ltype = ty; lbinding }, loc)
   | Binop (bop, lhs, rhs, loc) ->
@@ -453,7 +465,9 @@ let rec typed_expr (e : Ast.expr) =
   | Function ((fnname, fnparams, fntype_opt, fnexprs), loc) ->
     Hashtbl.clear bound_variables;
     (* bound variables do not persist across functions *)
-    List.iter (fun (pname, ptype, _) -> Hashtbl.add bound_variables pname ptype) fnparams;
+    List.iter
+      (fun (pname, ptype, _) -> Hashtbl.add bound_variables pname (false, ptype))
+      fnparams;
     let fnexprs = List.map typed_expr fnexprs in
     (* list of types of all the returns in the function *)
     (* need to extract the locations as well for better error reporting *)
@@ -556,13 +570,13 @@ let rec typed_expr (e : Ast.expr) =
                  let typed_ids =
                    List.map
                      (fun (s, ty) ->
-                       Hashtbl.add bound_variables s case_ty;
+                       Hashtbl.add bound_variables s (false, case_ty);
                        s, ty)
                      (List.combine ss variant_types)
                  in
                  UnionMatch (typed_ids, loc), ss
                | Ast.StructMatch (s, loc) ->
-                 Hashtbl.add bound_variables s case_ty;
+                 Hashtbl.add bound_variables s (false, case_ty);
                  StructMatch (s, loc), [ s ])
             | None -> TagMatch, []
           in
@@ -584,6 +598,36 @@ let rec typed_expr (e : Ast.expr) =
         mcases
     in
     Match ({ mexpr = texpr; mty = ty; mcases }, loc)
+  | Ast.Assignment (var_name, expr, loc) ->
+    let mut, var_type =
+      try Hashtbl.find bound_variables var_name with
+      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+    in
+    if not mut
+    then
+      raise
+        (TypeError
+           { kind = TEAssign
+           ; msg = Some (Format.sprintf "%s is not mutable" var_name)
+           ; loc
+           })
+    else ();
+    let texpr = typed_expr expr in
+    let ty = type_of texpr in
+    if ty <> var_type
+    then
+      raise
+        (TypeError
+           { kind = TETypeMismatch None
+           ; msg =
+               Some
+                 (Format.sprintf
+                    "Left side type %s does not match right side type %s"
+                    (string_of_type var_type)
+                    (string_of_type ty))
+           ; loc
+           });
+    Assignment ({ aslhs = var_name; asrhs = texpr; asty = ty }, loc)
 
 and map_fields fields name loc =
   let struct_field_tbl =

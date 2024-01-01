@@ -36,8 +36,9 @@ fn main() {
         other_other: 3;
         b: 4;
     };
-    let var2 = 1;
+    let mut var2 = 1;
     matcher(e);
+    var2 = 2;
     print("%d", adder(var.field, var2));
 }
 

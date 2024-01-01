@@ -71,8 +71,20 @@ let typed file_contents e =
   | Typed_ast.TypeError te ->
     let _ =
       match te.kind with
+      | TEAssign ->
+        Reporting.Renderer.render_error
+          file_contents
+          "Invalid assignment"
+          te.loc
+          te.msg
+          None
       | TEMatchInType ->
-        Reporting.Renderer.render_error file_contents "Matching on not supported type" te.loc te.msg None
+        Reporting.Renderer.render_error
+          file_contents
+          "Matching on not supported type"
+          te.loc
+          te.msg
+          None
       | TEEnumVariantNonExistant ->
         Reporting.Renderer.render_error
           file_contents

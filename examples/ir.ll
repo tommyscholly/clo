@@ -93,6 +93,7 @@ entry:
   %var2 = alloca i32, align 4
   store i32 1, ptr %var2, align 4
   call void @matcher(ptr %E)
+  store i32 2, ptr %var2, align 4
   %"06" = getelementptr inbounds %T, ptr %T, i32 0, i32 0
   %loadfield = load i32, ptr %"06", align 4
   %calltmp = call i32 @adder(i32 %loadfield, i32 1)

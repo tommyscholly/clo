@@ -14,6 +14,7 @@ let context = Llvm.global_context ()
 let llvm_module = Llvm.create_module context "jit"
 let builder = Llvm.builder context
 let named_values = Hashtbl.create 10
+let mutable_ptrs = Hashtbl.create 10
 let allocated_strings = Hashtbl.create 10
 let fn_tys = Hashtbl.create 10
 
@@ -106,6 +107,7 @@ let rec codegen_expr = function
     let var = Llvm.build_alloca alloc_type let_expr.lname builder in
     let _ = Llvm.build_store bound_expr var builder in
     Hashtbl.add named_values let_expr.lname bound_expr;
+    if let_expr.lmut then Hashtbl.add mutable_ptrs let_expr.lname var else ();
     bound_expr
   | Typed_ast.TypeDef (tc, loc) ->
     (match tc with
@@ -334,6 +336,14 @@ let rec codegen_expr = function
     Llvm.move_block_after last_block bottom_block;
     Llvm.position_at_end bottom_block builder;
     Llvm.const_null i32_type
+  | Typed_ast.Assignment (a, loc) ->
+    let name = a.aslhs in
+    let var =
+      try Hashtbl.find mutable_ptrs name with
+      | Not_found -> raise (CodegenError (UnknownVar name, loc))
+    in
+    let rhs = codegen_expr a.asrhs in
+    Llvm.build_store rhs var builder
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)

@@ -170,6 +170,7 @@ expr:
     | ec=enum_construct { ec }
     | m = match_statement { m }
     | id=IDENT { Variable (id, ($startpos, $endpos)) }
+    | id=IDENT; EQUAL; e=expr { Assignment (id, e, ($startpos, $endpos)) }
     | i=INT { Int i }
     | f=FLOAT { Float f }
     | TRUE { Bool true }

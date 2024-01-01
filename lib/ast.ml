@@ -54,6 +54,7 @@ type expr =
   | EnumConstruct of string * string * construct_variant option * loc
   | FieldAccess of string * string * loc (* name.field *)
   | Match of expr * match_case list * loc
+  | Assignment of string * expr * loc (* ident = expr *)
 
 and fndef = string * param list * type_expr option * expr list
 and construct_field = string * expr * loc
