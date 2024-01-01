@@ -91,23 +91,6 @@ let rec codegen_expr = function
     (match bop.bop with
      | Ast.Plus -> Llvm.build_add lhs_val rhs_val "addtmp" builder
      | Ast.Mul -> Llvm.build_mul lhs_val rhs_val "multmp" builder)
-  (* | Ast.Print (str, args, loc) -> *)
-  (*   let print_fn = Llvm.lookup_function "printf" llvm_module in *)
-  (*   let fn = *)
-  (*     match print_fn with *)
-  (*     | Some fn -> fn *)
-  (*     | None -> *)
-  (*       Llvm.dump_module llvm_module; *)
-  (*       raise (CodegenError (NotSupported, loc)) *)
-  (*   in *)
-  (*   let fn_ty = *)
-  (*     try Hashtbl.find fn_tys "printf" with *)
-  (*     | Not_found -> raise (CodegenError (UnknownVar, loc)) *)
-  (*   in *)
-  (*   let str_ptr = Llvm.build_global_stringptr str "format_str" builder in *)
-  (*   let args = List.map (fun e -> codegen_expr e) args in *)
-  (*   let args = Array.of_list (str_ptr :: args) in *)
-  (*   Llvm.build_call fn_ty fn args "" builder *)
   | Typed_ast.Let (let_expr, loc) ->
     let bound_expr = codegen_expr let_expr.lbinding in
     let alloc_type = map_type_def let_expr.ltype loc in
@@ -147,22 +130,16 @@ let rec codegen_expr = function
          | Typed_ast.Tag name ->
            let tagged_variant = Llvm.named_struct_type context (ed.ename ^ ":" ^ name) in
            Llvm.struct_set_body tagged_variant [| i8_type |] false
-           (* Llvm.dump_type tagged_variant; *)
-           (* print_newline () *)
          | Typed_ast.Union (name, tys) ->
            let union_variant = Llvm.named_struct_type context (ed.ename ^ ":" ^ name) in
            let mapped_tys = List.map (fun ty -> map_type_def ty loc) tys in
            let body = Array.of_list (i8_type :: mapped_tys) in
            Llvm.struct_set_body union_variant body false
-           (* Llvm.dump_type union_variant; *)
-           (* print_newline () *)
          | Typed_ast.Struct (name, sdef) ->
            let field_types = Array.map (fun (ty, l) -> map_type_def ty l) sdef.sfields in
            let field_types = Array.append [| i8_type |] field_types in
            let struct_variant = Llvm.named_struct_type context (ed.ename ^ ":" ^ name) in
            Llvm.struct_set_body struct_variant field_types false
-         (* Llvm.dump_type struct_variant; *)
-         (* print_newline () *)
        in
        let enum_size = get_largest_size ed.evariants in
        let memory_length = enum_size / 8 in
@@ -171,8 +148,6 @@ let rec codegen_expr = function
          enum
          [| i8_type; Llvm.array_type i8_type memory_length |]
          false;
-       Llvm.dump_type enum;
-       print_newline ();
        List.iter generate_variant ed.evariants;
        Llvm.const_null enum
      | Typed_ast.StructDef s ->
@@ -351,7 +326,6 @@ let rec codegen_expr = function
     let last_block = Array.get blocks (Array.length blocks - 1) in
     Llvm.move_block_after last_block bottom_block;
     Llvm.position_at_end bottom_block builder;
-    Llvm.dump_module llvm_module;
     Llvm.const_null i32_type
 
 and codegen_fn fndef loc =
@@ -385,7 +359,6 @@ and codegen_fn fndef loc =
     (Llvm.params fn);
   let bb = Llvm.append_block context "entry" fn in
   Llvm.position_at_end bb builder;
-  (* Llvm.dump_module llvm_module; *)
   try
     (* ew yuck mutability *)
     let ret_val = ref None in
