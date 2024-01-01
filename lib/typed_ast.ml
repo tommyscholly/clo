@@ -341,6 +341,7 @@ let rec typed_expr (e : Ast.expr) =
       | Ast.TCustom s -> s
       | _ -> raise (TypeError { kind = TEInvalidFieldAccess; msg = None; loc })
     in
+    let is_enum = String.contains var_type ':' in
     let sdef =
       try Hashtbl.find defined_structs var_type with
       | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
@@ -356,7 +357,7 @@ let rec typed_expr (e : Ast.expr) =
     let field_type, _ = Array.get sdef.sfields idx in
     FieldAccess
       ( { fvarname = var_name
-        ; ffieldidx = idx
+        ; ffieldidx = (if is_enum then idx + 1 else idx)
         ; ffieldtype = field_type
         ; ftypename = var_type
         }

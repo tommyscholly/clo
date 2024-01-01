@@ -304,8 +304,7 @@ let rec codegen_expr = function
                Llvm.const_int i32_type (Typed_ast.get_variant_id_for_name type_name)
              in
              Llvm.add_case switch enum_id block;
-             let gep = Llvm.build_struct_gep enum_type expr 1 name builder in
-             Hashtbl.add named_values name gep;
+             Hashtbl.add named_values name expr;
              [ name ]
            | TagMatch ->
              let block = make_match_block () in
