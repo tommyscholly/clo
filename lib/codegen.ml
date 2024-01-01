@@ -14,7 +14,6 @@ let context = Llvm.global_context ()
 let llvm_module = Llvm.create_module context "jit"
 let builder = Llvm.builder context
 let named_values = Hashtbl.create 10
-let mutable_ptrs = Hashtbl.create 10
 let allocated_strings = Hashtbl.create 10
 let fn_tys = Hashtbl.create 10
 
@@ -91,7 +90,23 @@ let rec codegen_expr = function
     else
       raise
         (CodegenError (Args (Array.length params, List.length call.cargs, call.cname), loc));
-    let args = Array.of_list (List.map codegen_expr call.cargs) in
+    let args =
+      Array.of_list
+        (List.map
+           (fun arg ->
+             match arg with
+             | Typed_ast.Variable (name, ty, _) ->
+               let var_ptr = codegen_expr arg in
+               let var_type = Llvm.type_of var_ptr in
+               (match Llvm.string_of_lltype var_type = "ptr" with
+                | false -> var_ptr
+                | true ->
+                  (match ty with
+                   | TCustom _ -> var_ptr
+                   | _ -> Llvm.build_load (map_type_def ty loc) var_ptr name builder))
+             | _ -> codegen_expr arg)
+           call.cargs)
+    in
     let call_assign_name = if call.ctype == Ast.TVoid then "" else "calltmp" in
     Llvm.build_call fn_ty callee args call_assign_name builder
   | Typed_ast.FnDef (fndef, loc) -> codegen_fn fndef loc
@@ -103,11 +118,16 @@ let rec codegen_expr = function
      | Ast.Mul -> Llvm.build_mul lhs_val rhs_val "multmp" builder)
   | Typed_ast.Let (let_expr, loc) ->
     let bound_expr = codegen_expr let_expr.lbinding in
-    let alloc_type = map_type_def let_expr.ltype loc in
-    let var = Llvm.build_alloca alloc_type let_expr.lname builder in
-    let _ = Llvm.build_store bound_expr var builder in
-    Hashtbl.add named_values let_expr.lname bound_expr;
-    if let_expr.lmut then Hashtbl.add mutable_ptrs let_expr.lname var else ();
+    let var =
+      match let_expr.ltype with
+      | Ast.TCustom _ -> bound_expr
+      | _ ->
+        let alloc_type = map_type_def let_expr.ltype loc in
+        let var = Llvm.build_alloca alloc_type let_expr.lname builder in
+        let _ = Llvm.build_store bound_expr var builder in
+        var
+    in
+    Hashtbl.add named_values let_expr.lname var;
     bound_expr
   | Typed_ast.TypeDef (tc, loc) ->
     (match tc with
@@ -175,7 +195,7 @@ let rec codegen_expr = function
          | Some ty -> ty
          | None -> raise (CodegenError (UnknownType, loc))
        in
-       let enum_alloc = Llvm.build_alloca variant_type ec.ecname builder in
+       let enum_alloc = Llvm.build_alloca variant_type "" builder in
        let gep = Llvm.build_struct_gep variant_type enum_alloc 0 "enum_tag_idx" builder in
        let _ = Llvm.build_store (Llvm.const_int i8_type ec.ecidx) gep builder in
        (* fill enum data *)
@@ -222,7 +242,7 @@ let rec codegen_expr = function
          | None -> raise (CodegenError (UnknownType, loc))
        in
        let args = sc.scfields in
-       let struct_alloc = Llvm.build_alloca struct_type sc.scname builder in
+       let struct_alloc = Llvm.build_alloca struct_type "" builder in
        Array.iteri
          (fun i (e, _) ->
            let v = codegen_expr e in
@@ -295,9 +315,10 @@ let rec codegen_expr = function
              in
              Llvm.add_case switch enum_id block;
              List.mapi
-               (fun i (id, _) ->
-                 let gep = Llvm.build_struct_gep enum_type expr (i + 1) id builder in
-                 Hashtbl.add named_values id gep;
+               (fun i (id, ty) ->
+                 let gep = Llvm.build_struct_gep enum_type expr (i + 1) "" builder in
+                 let load = Llvm.build_load (map_type_def ty loc) gep id builder in
+                 Hashtbl.add named_values id load;
                  id)
                ids
            | StructMatch (name, _) ->
@@ -339,7 +360,7 @@ let rec codegen_expr = function
   | Typed_ast.Assignment (a, loc) ->
     let name = a.aslhs in
     let var =
-      try Hashtbl.find mutable_ptrs name with
+      try Hashtbl.find named_values name with
       | Not_found -> raise (CodegenError (UnknownVar name, loc))
     in
     let rhs = codegen_expr a.asrhs in
