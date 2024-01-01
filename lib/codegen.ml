@@ -14,6 +14,7 @@ let context = Llvm.global_context ()
 let llvm_module = Llvm.create_module context "jit"
 let builder = Llvm.builder context
 let named_values = Hashtbl.create 10
+let allocated_strings = Hashtbl.create 10
 let fn_tys = Hashtbl.create 10
 
 (* types *)
@@ -56,9 +57,17 @@ let rec codegen_expr = function
   | Typed_ast.Float n -> Llvm.const_float double_type n
   | Typed_ast.Bool b -> Llvm.const_int i8_type (if b then 1 else 0)
   | Typed_ast.Str s ->
-    let str_int = !strings in
-    strings := !strings + 1;
-    Llvm.build_global_stringptr s (Format.sprintf "string_%d" str_int) builder
+    let ptr = Hashtbl.find_opt allocated_strings s in
+    (match ptr with
+     | Some ptr -> ptr
+     | None ->
+       let str_int = !strings in
+       strings := !strings + 1;
+       let ptr =
+         Llvm.build_global_stringptr s (Format.sprintf "string_%d" str_int) builder
+       in
+       Hashtbl.add allocated_strings s ptr;
+       ptr)
   | Typed_ast.Variable (name, _, loc) ->
     (try Hashtbl.find named_values name with
      | Not_found -> raise (CodegenError (UnknownVar name, loc)))
