@@ -19,7 +19,7 @@ fn matcher(thing: E) {
     match thing with
     | E:Int(i) -> print("%d", i),
     | E:Bool(b) -> print("%d", b),
-    | E:Struct s -> print("%d", s.field),
+    | E:Struct s -> print("%d, %d, %d, %d", s.field, s.other, s.other_other, s.b),
     | E:None -> print("None");
 }
 

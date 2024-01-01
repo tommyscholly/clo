@@ -7,7 +7,8 @@ source_filename = "jit"
 %T = type { i32, i8 }
 
 @string_0 = private unnamed_addr constant [3 x i8] c"%d\00", align 1
-@string_1 = private unnamed_addr constant [5 x i8] c"None\00", align 1
+@string_1 = private unnamed_addr constant [15 x i8] c"%d, %d, %d, %d\00", align 1
+@string_2 = private unnamed_addr constant [5 x i8] c"None\00", align 1
 
 declare void @printf(ptr %0, ...)
 
@@ -37,11 +38,17 @@ default:                                          ; preds = %entry
 "E:Struct_case":                                  ; preds = %entry
   %"1" = getelementptr inbounds %"E:Struct", ptr %thing, i32 0, i32 1
   %loadfield = load i32, ptr %"1", align 4
-  call void (ptr, ...) @printf(ptr @string_0, i32 %loadfield)
+  %"2" = getelementptr inbounds %"E:Struct", ptr %thing, i32 0, i32 2
+  %loadfield1 = load i32, ptr %"2", align 4
+  %"3" = getelementptr inbounds %"E:Struct", ptr %thing, i32 0, i32 3
+  %loadfield2 = load i32, ptr %"3", align 4
+  %"4" = getelementptr inbounds %"E:Struct", ptr %thing, i32 0, i32 4
+  %loadfield3 = load i32, ptr %"4", align 4
+  call void (ptr, ...) @printf(ptr @string_1, i32 %loadfield, i32 %loadfield1, i32 %loadfield2, i32 %loadfield3)
   br label %match_finish
 
 "E:None_case":                                    ; preds = %entry
-  call void (ptr, ...) @printf(ptr @string_1)
+  call void (ptr, ...) @printf(ptr @string_2)
   br label %match_finish
 
 match_finish:                                     ; preds = %"E:None_case", %"E:Struct_case", %"E:Bool_case", %"E:Int_case"
