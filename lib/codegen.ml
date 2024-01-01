@@ -136,19 +136,19 @@ let rec codegen_expr = function
        in
        let generate_variant = function
          | Typed_ast.Tag name ->
-           let tagged_variant = Llvm.named_struct_type context (ed.ename ^ name) in
+           let tagged_variant = Llvm.named_struct_type context (ed.ename ^ ":" ^ name) in
            Llvm.struct_set_body tagged_variant [| i8_type |] false
            (* Llvm.dump_type tagged_variant; *)
            (* print_newline () *)
          | Typed_ast.Union (name, ty) ->
-           let union_variant = Llvm.named_struct_type context (ed.ename ^ name) in
+           let union_variant = Llvm.named_struct_type context (ed.ename ^ ":" ^ name) in
            Llvm.struct_set_body union_variant [| i8_type; map_type_def ty loc |] false
            (* Llvm.dump_type union_variant; *)
            (* print_newline () *)
          | Typed_ast.Struct (name, sdef) ->
            let field_types = Array.map (fun (ty, l) -> map_type_def ty l) sdef.sfields in
            let field_types = Array.append [| i8_type |] field_types in
-           let struct_variant = Llvm.named_struct_type context (ed.ename ^ name) in
+           let struct_variant = Llvm.named_struct_type context (ed.ename ^ ":" ^ name) in
            Llvm.struct_set_body struct_variant field_types false
          (* Llvm.dump_type struct_variant; *)
          (* print_newline () *)
@@ -174,7 +174,7 @@ let rec codegen_expr = function
        (* we just check tag and gep to the data segment *)
        (* https://releases.llvm.org/16.0.0/docs/OpaquePointers.html *)
        let variant_type =
-         match Llvm.type_by_name llvm_module (ec.ecname ^ ec.ecvariant) with
+         match Llvm.type_by_name llvm_module (ec.ecname ^ ":" ^ ec.ecvariant) with
          | Some ty -> ty
          | None -> raise (CodegenError (UnknownType, loc))
        in
@@ -262,7 +262,7 @@ let rec codegen_expr = function
      | Ast.TInt | Ast.TBool ->
        Llvm.build_load (map_type_def faccess.ffieldtype loc) gep "loadfield" builder
      | _ -> raise (CodegenError (NotSupported, loc)))
-  | Typed_ast.Match(_, _, loc) -> raise (CodegenError (NotSupported, loc))
+  | Typed_ast.Match (_, loc) -> raise (CodegenError (NotSupported, loc))
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)

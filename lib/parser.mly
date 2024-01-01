@@ -29,6 +29,7 @@
 %token WITH
 %token PIPE
 %token UNDERSCORE
+%token MUT
 
 %token STRUCT
 %token ENUM
@@ -136,12 +137,16 @@ enum_construct:
 match_case_kind:
     | LPAREN; is=separated_list(COMMA, IDENT); RPAREN { UnionMatch (is, ($startpos, $endpos)) }
     | struct_name=IDENT; { StructMatch (struct_name, ($startpos, $endpos)) }
+    ;
+
+match_type:
+    | name=IDENT; COLON; variant_name=IDENT; kind=option(match_case_kind); { EnumMatch (name, variant_name, kind) }
     | UNDERSCORE; { DefaultMatch }
     ;
 
 (* these are basically enum data with identifiers *)
 match_case:
-    | PIPE; name=IDENT; COLON; variant_name=IDENT; kind=option(match_case_kind); ARROW; e=expr { name, variant_name, kind, e, ($startpos, $endpos)}
+    | PIPE; ty=match_type; ARROW; e=expr { ty, e, ($startpos, $endpos)}
     ;
 
 match_cases:
@@ -155,7 +160,7 @@ match_statement:
 expr:
     | LPAREN; e=expr RPAREN {e}
     | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, ($startpos, $endpos)) }
-    | LET; id=IDENT; annot=option(type_annotation); EQUAL; e=expr { Let (id, annot, e, ($startpos, $endpos)) }
+    | LET; mut=option(MUT); id=IDENT; annot=option(type_annotation); EQUAL; e=expr { Let (id, mut, annot, e, ($startpos, $endpos)) }
     | fn=IDENT; fn_args=args { Call (fn, fn_args, ($startpos, $endpos)) }
     | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN; {  Print(str, args, ($startpos, $endpos)) }
     | fn_def=function_defn { fn_def }

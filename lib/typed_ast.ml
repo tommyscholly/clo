@@ -39,7 +39,27 @@ type expr =
   | TypeConstruct of
       type_construct * loc (* something like thing = StructName { field_one: string} *)
   | FieldAccess of field_access * loc
-  | Match of expr * type_expr * loc
+  | Match of match_expr * loc
+
+and enum_match_kind =
+  | UnionMatch of string list * loc
+  | StructMatch of string * loc (* struct is just allocated to an identifier *)
+  | TagMatch
+
+and match_case_kind = EnumMatch of enum_match_kind | DefaultMatch
+
+and match_case =
+  { casety : type_expr
+  ; casekind : match_case_kind
+  ; caseexpr : expr
+  ; caseloc : loc
+  }
+
+and match_expr =
+  { mexpr : expr
+  ; mty : type_expr
+  ; mcases : match_case list
+  }
 
 and call =
   { cname : string
@@ -56,6 +76,7 @@ and bop =
 
 and let_expr =
   { lname : string
+  ; lmut : bool
   ; ltype : type_expr
   ; lbinding : expr
   }
@@ -130,7 +151,7 @@ let defined_struct_fields =
 let bound_variables : (string, type_expr) Hashtbl.t = Hashtbl.create 10
 let string_of_type = Ast.string_of_type
 let defined_functions = Hashtbl.create 10 (* fn_name -> type_expr *)
-let defined_enums = Hashtbl.create 10 (* fn_name -> type_expr *)
+let defined_enums = Hashtbl.create 10 (* fn_name -> array evariant *)
 
 let size_of = function
   | Ast.TInt -> 32
@@ -172,7 +193,7 @@ let type_of = function
   | Binop (b, _) -> b.btype
   | FnDef (fndef, _) -> fndef.fnret
   | FieldAccess (faccess, _) -> faccess.ffieldtype
-  | Match (_, ty, _) -> ty
+  | Match (m, _) -> m.mty
 ;;
 
 let typecheck_field field_name struct_name fieldty loc =
@@ -347,7 +368,12 @@ let rec typed_expr (e : Ast.expr) =
       | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
     in
     Variable (var_name, bound_var, loc)
-  | Let (name, ty, expr, loc) ->
+  | Let (name, mut, ty, expr, loc) ->
+    let mut =
+      match mut with
+      | Some () -> true
+      | None -> false
+    in
     let lbinding = typed_expr expr in
     let lbinding_type = type_of lbinding in
     let ty =
@@ -371,7 +397,7 @@ let rec typed_expr (e : Ast.expr) =
     in
     Hashtbl.add bound_variables name lbinding_type;
     (* be able to look up bindings to find and validate field accesses *)
-    Let ({ lname = name; ltype = ty; lbinding }, loc)
+    Let ({ lname = name; lmut = mut; ltype = ty; lbinding }, loc)
   | Binop (bop, lhs, rhs, loc) ->
     let lhs = typed_expr lhs in
     let rhs = typed_expr rhs in
@@ -460,7 +486,7 @@ let rec typed_expr (e : Ast.expr) =
     let texpr = typed_expr expr in
     let ty = type_of texpr in
     Return (texpr, ty, loc)
-  | Match (expr, _, loc) ->
+  | Match (expr, cases, loc) ->
     let texpr = typed_expr expr in
     let ty = type_of texpr in
     if match ty with
@@ -468,7 +494,30 @@ let rec typed_expr (e : Ast.expr) =
        | _ -> false
     then ()
     else raise (TypeError { kind = TEMatchInType; msg = None; loc });
-    Match (texpr, ty, loc)
+    let map_case (case_kind, case_expr, loc) =
+      let caseexpr = typed_expr case_expr in
+      let casety, casekind =
+        match case_kind with
+        (* case is an enum match *)
+        | Ast.EnumMatch (enum_name, enum_variant, kind) ->
+          let case_ty = Ast.TCustom (enum_name ^ ":" ^ enum_variant) in
+          let casekind =
+            (* kind is an option, where if it is None, then it is "Type:Tag" with no data *)
+            match kind with
+            | Some k ->
+              (match k with
+               | Ast.UnionMatch (ss, loc) -> UnionMatch (ss, loc)
+               | Ast.StructMatch (s, loc) -> StructMatch (s, loc)
+               )
+            | None -> TagMatch
+          in
+          case_ty, EnumMatch casekind
+        | Ast.DefaultMatch -> Ast.TCustom "_", DefaultMatch
+      in
+      { casety; caseexpr; caseloc = loc; casekind }
+    in
+    let mcases = List.map map_case cases in
+    Match ({ mexpr = texpr; mty = ty; mcases }, loc)
 
 and map_fields fields name loc =
   let struct_field_tbl =

@@ -45,7 +45,7 @@ type expr =
   (* variant for function calls. *)
   | Call of string * expr list * loc
   | Print of string * expr list * loc
-  | Let of string * type_expr option * expr * loc
+  | Let of string * unit option * type_expr option * expr * loc
   | Function of fndef * loc
   | Return of expr * loc
   | Struct of string * field list * loc
@@ -62,9 +62,12 @@ and construct_variant =
   | UnionVariant of expr list
   | StructVariant of construct_field list
 
-and match_case = string * string * match_case_kind option * expr * loc
+and match_case = match_case_kind * expr * loc
 
 and match_case_kind =
+  | EnumMatch of string * string * enum_match_kind option
+  | DefaultMatch
+
+and enum_match_kind =
   | UnionMatch of string list * loc
   | StructMatch of string * loc (* struct is just allocated to an identifier *)
-  | DefaultMatch

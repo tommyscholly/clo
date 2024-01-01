@@ -40,6 +40,7 @@ rule read =
   | "with"   { WITH }
   | "int"    { TYPE_INT }
   | "bool"   { TYPE_BOOL }
+  | "mut"    { MUT }
   | "+"      { PLUS }
   | "*"      { MUL }
   | "("      { LPAREN }
