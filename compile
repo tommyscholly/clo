@@ -1,0 +1,7 @@
+#!/usr/bin/env zsh
+file="$1"
+
+dune exec bin/main.exe "$file" &> just_out.ll
+llvm-as-16 -o just_out.bc just_out.ll
+llc-16 -filetype=obj -o just_out.o just_out.bc
+gcc -o out just_out.o -no-pie

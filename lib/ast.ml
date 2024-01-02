@@ -4,7 +4,9 @@ let dummy_loc = Lexing.dummy_pos, Lexing.dummy_pos
 
 type bop =
   | Plus
+  | Minus
   | Mul
+  | Eq
 
 (* proto - This type represents the "prototype" for a function, which captures
  * its name, and its argument names (thus implicitly the number of arguments the

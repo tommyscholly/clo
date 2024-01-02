@@ -29,9 +29,13 @@ fn adder(one: int, two: int) -> int {
 
 fn test(var: T) {
     if var.field_two {
-        print("var fn :%d\n", var.field);
+        print("var fn: %d\n", var.field);
     } else {
         print("false");
+    }
+
+    if var.field_two {
+        print("single branch if\n");
     }
 }
 

@@ -10,6 +10,7 @@
 %token LET
 %token PRINT
 %token PLUS
+%token MINUS
 %token MUL
 %token EOF
 %token TRUE
@@ -24,6 +25,7 @@
 %token COLON
 %token SEMICOLON
 %token EQUAL
+%token EQUALEQUAL
 %token DOT
 %token MATCH
 %token WITH
@@ -41,6 +43,7 @@
 %token TYPE_VOID
 
 %left PLUS
+%left MINUS
 %left MUL
 
 %start <Ast.expr list> prog
@@ -190,3 +193,5 @@ expr:
 %inline bin_op:
 | PLUS { Plus }
 | MUL { Mul }
+| MINUS { Minus }
+| EQUALEQUAL { Eq }

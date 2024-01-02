@@ -46,6 +46,7 @@ type expr =
 
 and if_expr =
   { ifcond : expr
+  ; has_return : type_expr option
   ; then_block : expr list
   ; else_block : expr list option
   }
@@ -469,13 +470,26 @@ let rec typed_expr (e : Ast.expr) =
                     (string_of_type rhs_type))
            })
     else ();
-    Binop ({ bop; lhs; rhs; btype = lhs_type }, loc)
+    let btype =
+      match bop with
+      | Ast.Eq -> Ast.TBool
+      | _ -> lhs_type
+    in
+    Binop ({ bop; lhs; rhs; btype }, loc)
   | Function ((fnname, fnparams, fntype_opt, fnexprs), loc) ->
     Hashtbl.clear bound_variables;
     (* bound variables do not persist across functions *)
     List.iter
       (fun (pname, ptype, _) -> Hashtbl.add bound_variables pname (false, ptype))
       fnparams;
+    let fnret =
+      match fntype_opt with
+      | Some ty -> ty
+      | None -> TVoid
+    in
+    let dummy_fndef = { fnname; fnparams; fnret; fnexprs = [] } in
+    (* we add a dummy fndef into defined functions so recursive calls can see it *)
+    Hashtbl.add defined_functions fnname dummy_fndef;
     let fnexprs = List.map typed_expr fnexprs in
     (* list of types of all the returns in the function *)
     (* need to extract the locations as well for better error reporting *)
@@ -493,15 +507,11 @@ let rec typed_expr (e : Ast.expr) =
       (* assert that there are no returns if the return type is void *)
       | _ -> List.length returns = 0 (* Util.all_same returns *)
     in
-    let fnret =
-      if not return_types_match
-      then raise (TypeError { kind = TEReturnTypeMismatch; loc; msg = None })
-      else (
-        match fntype_opt with
-        | Some ty -> ty
-        | None -> TVoid)
-    in
+    if not return_types_match
+    then raise (TypeError { kind = TEReturnTypeMismatch; loc; msg = None })
+    else ();
     let fndef = { fnname; fnparams; fnret; fnexprs } in
+    Hashtbl.remove defined_functions fnname;
     Hashtbl.add defined_functions fnname fndef;
     FnDef (fndef, loc)
   | Call (fnname, args, loc) ->
@@ -651,10 +661,20 @@ let rec typed_expr (e : Ast.expr) =
                     (string_of_type cond_ty))
            ; loc
            });
-
-    let then_block = List.map typed_expr then_block in
+    let has_return = ref None in
+    let then_block =
+      List.map
+        (fun e ->
+          let texpr = typed_expr e in
+          (match texpr with
+           | Return (_, ty, _) -> has_return := Some ty
+           | _ -> ());
+          texpr)
+        then_block
+    in
     let else_block = Option.map (List.map typed_expr) else_block in
-    If ({ ifcond = cond; then_block; else_block }, loc)
+    let has_return = !has_return in
+    If ({ ifcond = cond; then_block; else_block; has_return }, loc)
 
 and map_fields fields name loc =
   let struct_field_tbl =

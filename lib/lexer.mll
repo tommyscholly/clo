@@ -43,20 +43,22 @@ rule read =
   | "mut"    { MUT }
   | "if"     { IF }
   | "else"   { ELSE }
-  | "+"      { PLUS }
-  | "*"      { MUL }
-  | "("      { LPAREN }
-  | ")"      { RPAREN }
-  | "{"      { LBRACE }
-  | "}"      { RBRACE }
   | "->"     { ARROW }
-  | "|"      { PIPE }
-  | "_"      { UNDERSCORE }
-  | ","      { COMMA }
-  | ":"      { COLON }
-  | ";"      { SEMICOLON }
-  | "="      { EQUAL }
-  | "."      { DOT }
+  | "=="     { EQUALEQUAL }
+  | '+'      { PLUS }
+  | '-'      { MINUS }
+  | '*'      { MUL }
+  | '('      { LPAREN }
+  | ')'      { RPAREN }
+  | '{'      { LBRACE }
+  | '}'      { RBRACE }
+  | '|'      { PIPE }
+  | '_'      { UNDERSCORE }
+  | ','      { COMMA }
+  | ':'      { COLON }
+  | ';'      { SEMICOLON }
+  | '='      { EQUAL }
+  | '.'      { DOT }
   | '"'      { read_string (Buffer.create 17) lexbuf }
   | id       { IDENT (Lexing.lexeme lexbuf) }
   | _        { raise ( SyntaxError ("Unexpected char: " ^ Lexing.lexeme lexbuf)) }
