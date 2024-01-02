@@ -79,7 +79,7 @@ args:
 
 semi_terminated:
     | e=expr; SEMICOLON { e }
-    | IF; cond=expr; then_block=block_expr; else_block=option(else_statement) { If (cond, then_block, else_block, ($startpos, $endpos)) }
+    | iff=if_expr; { If iff }
     ;
 
 block_expr:
@@ -163,8 +163,13 @@ match_statement:
     | MATCH; e=expr; WITH; cases=match_cases { Match (e, cases, ($startpos, $endpos)) }
     ;
 
+if_expr:
+    | IF; cond=expr; then_block=block_expr; else_block=option(else_statement) { (cond, then_block, else_block, ($startpos, $endpos)) }
+    ;
+
 else_statement:
-    | ELSE; else_block=block_expr { else_block }
+    | ELSE; else_block=block_expr { ElseBlock else_block }
+    | ELSE; else_if=if_expr { ElseIfBlock else_if }
     ;
 
 expr:
