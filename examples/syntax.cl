@@ -28,7 +28,11 @@ fn adder(one: int, two: int) -> int {
 }
 
 fn test(var: T) {
-    print("var fn :%d\n", var.field);
+    if var.field_two {
+        print("var fn :%d\n", var.field);
+    } else {
+        print("false");
+    }
 }
 
 fn main() {

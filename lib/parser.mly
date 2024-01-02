@@ -30,6 +30,8 @@
 %token PIPE
 %token UNDERSCORE
 %token MUT
+%token IF
+%token ELSE
 
 %token STRUCT
 %token ENUM
@@ -74,6 +76,7 @@ args:
 
 semi_terminated:
     | e=expr; SEMICOLON { e }
+    | IF; cond=expr; then_block=block_expr; else_block=option(else_statement) { If (cond, then_block, else_block, ($startpos, $endpos)) }
     ;
 
 block_expr:
@@ -157,12 +160,16 @@ match_statement:
     | MATCH; e=expr; WITH; cases=match_cases { Match (e, cases, ($startpos, $endpos)) }
     ;
 
+else_statement:
+    | ELSE; else_block=block_expr { else_block }
+    ;
+
 expr:
     | LPAREN; e=expr RPAREN {e}
     | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, ($startpos, $endpos)) }
     | LET; mut=option(MUT); id=IDENT; annot=option(type_annotation); EQUAL; e=expr { Let (id, mut, annot, e, ($startpos, $endpos)) }
     | fn=IDENT; fn_args=args { Call (fn, fn_args, ($startpos, $endpos)) }
-    | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN; {  Print(str, args, ($startpos, $endpos)) }
+    | PRINT; LPAREN; str=STRING; option(COMMA); args=separated_list(COMMA, expr); RPAREN; {  Print (str, args, ($startpos, $endpos)) }
     | fn_def=function_defn { fn_def }
     | struct_def=struct_defn { struct_def }
     | enum_def=enum_defn { enum_def }

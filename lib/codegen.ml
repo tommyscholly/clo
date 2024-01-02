@@ -22,6 +22,7 @@ let double_type = Llvm.double_type context
 let i32_type = Llvm.i32_type context
 let void_type = Llvm.void_type context
 let i8_type = Llvm.i8_type context
+let i1_type = Llvm.i1_type context
 let struct_type = Llvm.struct_type context
 let named_struct_type = Llvm.named_struct_type context
 let strings = ref 0
@@ -30,7 +31,7 @@ let map_type_def ty loc =
   match ty with
   | Ast.TInt -> i32_type
   | Ast.TVoid -> void_type
-  | Ast.TBool -> i8_type
+  | Ast.TBool -> i1_type
   | Ast.TCustom name ->
     (match Llvm.type_by_name llvm_module name with
      (* | Some ty -> ty *)
@@ -365,6 +366,37 @@ let rec codegen_expr = function
     in
     let rhs = codegen_expr a.asrhs in
     Llvm.build_store rhs var builder
+  | Typed_ast.If (if_expr, _) ->
+    let if_condition = codegen_expr if_expr.ifcond in
+    let current_block = Llvm.insertion_block builder in
+    let parent_fn = Llvm.block_parent current_block in
+    let then_block = Llvm.append_block context "then_block" parent_fn in
+    let else_block = Llvm.append_block context "else_block" parent_fn in
+    let final_block = Llvm.append_block context "if_bottom_block" parent_fn in
+    let _ = Llvm.build_cond_br if_condition then_block else_block builder in
+    (* generate then block *)
+    Llvm.position_at_end then_block builder;
+    List.iter
+      (fun e ->
+        let _ = codegen_expr e in
+        ())
+      if_expr.then_block;
+    let _ = Llvm.build_br final_block builder in
+    (* generate else block or define as unreachable *)
+    Llvm.position_at_end else_block builder;
+    let _ =
+      match if_expr.else_block with
+      | Some exprs ->
+        List.iter
+          (fun e ->
+            let _ = codegen_expr e in
+            ())
+          exprs;
+        Llvm.build_br final_block builder
+      | None -> Llvm.build_unreachable builder
+    in
+    Llvm.position_at_end final_block builder;
+    Llvm.const_null i32_type
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)

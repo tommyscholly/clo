@@ -55,6 +55,7 @@ type expr =
   | FieldAccess of string * string * loc (* name.field *)
   | Match of expr * match_case list * loc
   | Assignment of string * expr * loc (* ident = expr *)
+  | If of expr * expr list * expr list option * loc
 
 and fndef = string * param list * type_expr option * expr list
 and construct_field = string * expr * loc

@@ -42,6 +42,13 @@ type expr =
   | FieldAccess of field_access * loc
   | Match of match_expr * loc
   | Assignment of assignment_expr * loc
+  | If of if_expr * loc
+
+and if_expr =
+  { ifcond : expr
+  ; then_block : expr list
+  ; else_block : expr list option
+  }
 
 and assignment_expr =
   { aslhs : string (* id *)
@@ -211,6 +218,7 @@ let type_of = function
      | EnumConst e -> Ast.TCustom e.ecname
      | StructConst s -> TCustom s.scname)
   | TypeDef (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
+  | If (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
   | Variable (_, ty, _) -> ty
   | Let (l, _) -> l.ltype
   | Call (c, _) -> c.ctype
@@ -598,7 +606,7 @@ let rec typed_expr (e : Ast.expr) =
         mcases
     in
     Match ({ mexpr = texpr; mty = ty; mcases }, loc)
-  | Ast.Assignment (var_name, expr, loc) ->
+  | Assignment (var_name, expr, loc) ->
     let mut, var_type =
       try Hashtbl.find bound_variables var_name with
       | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
@@ -628,6 +636,25 @@ let rec typed_expr (e : Ast.expr) =
            ; loc
            });
     Assignment ({ aslhs = var_name; asrhs = texpr; asty = ty }, loc)
+  | If (cond, then_block, else_block, loc) ->
+    let cond = typed_expr cond in
+    let cond_ty = type_of cond in
+    if cond_ty <> Ast.TBool
+    then
+      raise
+        (TypeError
+           { kind = TETypeMismatch None
+           ; msg =
+               Some
+                 (Format.sprintf
+                    "Condition should be of type bool, is type %s"
+                    (string_of_type cond_ty))
+           ; loc
+           });
+
+    let then_block = List.map typed_expr then_block in
+    let else_block = Option.map (List.map typed_expr) else_block in
+    If ({ ifcond = cond; then_block; else_block }, loc)
 
 and map_fields fields name loc =
   let struct_field_tbl =

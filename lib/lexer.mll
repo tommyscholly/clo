@@ -41,6 +41,8 @@ rule read =
   | "int"    { TYPE_INT }
   | "bool"   { TYPE_BOOL }
   | "mut"    { MUT }
+  | "if"     { IF }
+  | "else"   { ELSE }
   | "+"      { PLUS }
   | "*"      { MUL }
   | "("      { LPAREN }
