@@ -42,7 +42,20 @@ else_block3:                                      ; preds = %else_block
 
 define void @main() {
 entry:
-  %calltmp = call i32 @fib(i32 10)
+  %i = alloca i32, align 4
+  store i32 1, ptr %i, align 4
+  br label %for_top
+
+for_top:                                          ; preds = %for_top, %entry
+  %i1 = load i32, ptr %i, align 4
+  %calltmp = call i32 @fib(i32 %i1)
   call void (ptr, ...) @printf(ptr @string_0, i32 %calltmp)
+  %iterload = load i32, ptr %i, align 4
+  %iterincrement = add i32 %iterload, 1
+  store i32 %iterincrement, ptr %i, align 4
+  %0 = icmp sle i32 %iterincrement, 10
+  br i1 %0, label %for_top, label %bottom_block
+
+bottom_block:                                     ; preds = %for_top
   ret void
 }
