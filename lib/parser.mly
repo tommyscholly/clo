@@ -177,11 +177,11 @@ else_statement:
     ;
 
 range_expr:
-    | start=INT; DOTDOT; end=INT { (start, end) }
+    | start=INT; DOTDOT; finish=INT { Range (start, finish) }
     ;
 
 for_expr:
-    | FOR; id=IDENT; IN; range=range_expr { ForInRange (id, range) }
+    | FOR; id=IDENT; IN; range=range_expr; { ForInRange (id, range) }
     ;
 
 expr:
@@ -195,7 +195,7 @@ expr:
     | enum_def=enum_defn { enum_def }
     | sc=struct_construct { sc }
     | ec=enum_construct { ec }
-    | fore=for_expr { For (fore, ($startpos, $endpos)) }
+    | fore=for_expr; exprs=block_expr { For (fore, exprs, ($startpos, $endpos)) }
     | m = match_statement { m }
     | id=IDENT { Variable (id, ($startpos, $endpos)) }
     | id=IDENT; EQUAL; e=expr { Assignment (id, e, ($startpos, $endpos)) }

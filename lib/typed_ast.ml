@@ -43,6 +43,16 @@ type expr =
   | Match of match_expr * loc
   | Assignment of assignment_expr * loc
   | If of if_expr * loc
+  | For of for_expr * loc
+
+and for_expr =
+  { fident : string
+  ; fkind : for_kind
+  ; fty: type_expr
+  ; fblock : expr list
+  }
+
+and for_kind = Range of int * int
 
 and if_expr =
   { has_return : type_expr option
@@ -219,6 +229,7 @@ let type_of = function
      | StructConst s -> TCustom s.scname)
   | TypeDef (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
   | If (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
+  | For (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
   | Variable (_, ty, _) -> ty
   | Let (l, _) -> l.ltype
   | Call (c, _) -> c.ctype
@@ -675,6 +686,16 @@ let rec typed_expr (e : Ast.expr) =
     let else_block = Option.map (List.map typed_expr) else_block in
     let has_return = !has_return in
     If ({ cond_blocks = conds; else_block; has_return }, loc)
+  | For (for_ty, exprs, loc) ->
+    let map_for_ty = function
+      | Ast.ForInRange (for_id, range) ->
+        (match range with
+         | Ast.Range (start, finish) -> for_id, Range (start, finish), Ast.TInt)
+    in
+    let fident, fkind, fty = map_for_ty for_ty in
+    Hashtbl.add bound_variables fident (false, fty);
+    let fblock = List.map typed_expr exprs in
+    For ({ fkind; fblock; fident ; fty }, loc)
 
 and map_fields fields name loc =
   let struct_field_tbl =

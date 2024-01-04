@@ -445,6 +445,32 @@ let rec codegen_expr = function
       match ret_ty with
       | Ast.TVoid -> return
       | _ -> Llvm.build_load (map_type_def ret_ty loc) return "" builder)
+  | Typed_ast.For (for_expr, loc) ->
+    let current_block = Llvm.insertion_block builder in
+    let parent_fn = Llvm.block_parent current_block in
+    let top_block = Llvm.append_block context "for_top" parent_fn in
+    let bottom_block = Llvm.append_block context "bottom_block" parent_fn in
+    let iter_ty = map_type_def for_expr.fty loc in
+    let iterator = Llvm.build_alloca iter_ty for_expr.fident builder in
+    Hashtbl.add named_values for_expr.fident iterator;
+    (match for_expr.fkind with
+     | Typed_ast.Range (start, finish) ->
+       Llvm.position_at_end current_block builder;
+       let const_start = Llvm.const_int iter_ty start in
+       let const_finish = Llvm.const_int iter_ty finish in
+       let const1 = Llvm.const_int iter_ty 1 in
+       let _ = Llvm.build_store const_start iterator builder in
+       let _ = Llvm.build_br top_block builder in
+       Llvm.position_at_end top_block builder;
+       let _ = List.map codegen_expr for_expr.fblock in
+       let iter_load = Llvm.build_load iter_ty iterator "iterload" builder in
+       let iter_increment = Llvm.build_add iter_load const1 "iterincrement" builder in
+       let _ = Llvm.build_store iter_increment iterator builder in
+       let icmp = Llvm.build_icmp Llvm.Icmp.Sle iter_increment const_finish "" builder in
+       let _ = Llvm.build_cond_br icmp top_block bottom_block builder in
+       ());
+    Llvm.position_at_end bottom_block builder;
+    Llvm.const_null i32_type
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)

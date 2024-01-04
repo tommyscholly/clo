@@ -59,9 +59,9 @@ type expr =
   | Match of expr * match_case list * loc
   | Assignment of string * expr * loc (* ident = expr *)
   | If of if_expr
-  | For of for_type * loc
+  | For of for_type * expr list * loc
 
-and for_type = ForInRange of string * range
+and for_type = ForInRange of string * range 
 
 and if_expr = (expr * expr list) * expr list option * loc
 and fndef = string * param list * type_expr option * expr list

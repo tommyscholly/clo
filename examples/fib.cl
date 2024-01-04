@@ -14,5 +14,7 @@ fn fib(i: int) -> int {
 }
 
 fn main() {
-    print("%d\n", fib(10));
+    for i in 1..10 {
+        print("%d\n", fib(i));
+    };
 }
