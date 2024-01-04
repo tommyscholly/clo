@@ -40,6 +40,15 @@ let map_type_def ty loc =
   | _ -> raise (CodegenError (UnknownType, loc))
 ;;
 
+let try_load ty loc value =
+  match Llvm.string_of_lltype (Llvm.type_of value) = "ptr" with
+  | false -> value
+  | true ->
+    (match ty with
+     | Ast.TCustom _ -> value
+     | _ -> Llvm.build_load (map_type_def ty loc) value "" builder)
+;;
+
 let register_extern_functions () =
   let ft = Llvm.var_arg_function_type void_type [| Llvm.pointer_type context |] in
   Hashtbl.add fn_tys "printf" ft;
@@ -111,9 +120,11 @@ let rec codegen_expr = function
     let call_assign_name = if call.ctype == Ast.TVoid then "" else "calltmp" in
     Llvm.build_call fn_ty callee args call_assign_name builder
   | Typed_ast.FnDef (fndef, loc) -> codegen_fn fndef loc
-  | Typed_ast.Binop (bop, _) ->
+  | Typed_ast.Binop (bop, loc) ->
     let lhs_val = codegen_expr bop.lhs in
     let rhs_val = codegen_expr bop.rhs in
+    let rhs_val = try_load bop.btype loc rhs_val in
+    let lhs_val = try_load bop.btype loc lhs_val in
     (match bop.bop with
      | Ast.Plus -> Llvm.build_add lhs_val rhs_val "add" builder
      | Ast.Minus -> Llvm.build_sub lhs_val rhs_val "sub" builder
@@ -256,9 +267,15 @@ let rec codegen_expr = function
            ())
          args;
        struct_alloc)
-  | Typed_ast.Return (e, _, loc) ->
-    (try codegen_expr e with
-     | CodegenError (_, _) -> raise (CodegenError (ReturnType, loc)))
+  | Typed_ast.Return (e, ty, loc) ->
+    let r =
+      try_load
+        ty
+        loc
+        (try codegen_expr e with
+         | CodegenError (_, _) -> raise (CodegenError (ReturnType, loc)))
+    in
+    Llvm.build_ret r builder
   | Typed_ast.FieldAccess (faccess, loc) ->
     let var =
       try Hashtbl.find named_values faccess.fvarname with
@@ -369,7 +386,8 @@ let rec codegen_expr = function
     let rhs = codegen_expr a.asrhs in
     Llvm.build_store rhs var builder
   | Typed_ast.If (if_expr, loc) ->
-    let if_condition = codegen_expr if_expr.ifcond in
+    let if_cond, cond_block = if_expr.cond_blocks in
+    let if_condition = codegen_expr if_cond in
     let current_block = Llvm.insertion_block builder in
     let parent_fn = Llvm.block_parent current_block in
     let then_block = Llvm.append_block context "then_block" parent_fn in
@@ -383,31 +401,50 @@ let rec codegen_expr = function
     let _ = Llvm.build_cond_br if_condition then_block else_block builder in
     (* generate then block *)
     Llvm.position_at_end then_block builder;
-    let gen_cond_block e =
-      match e with
-      | Typed_ast.Return (_, _, _) ->
-        let ret = codegen_expr e in
-        let _ = Llvm.build_store ret return builder in
-        ()
-      | _ ->
-        let _ = codegen_expr e in
-        ()
+    let final_block_jumps = ref 0 in
+    let gen_code_block exprs =
+      let has_return = ref false in
+      let _ =
+        List.map
+          (fun e ->
+            match e with
+            | Typed_ast.Return (_, _, _) ->
+              has_return := true;
+              codegen_expr e
+            | Typed_ast.If (if_expr, _) ->
+              (match if_expr.has_return with
+               | Some _ -> has_return := true
+               | None -> ());
+              codegen_expr e
+            | _ -> codegen_expr e)
+          exprs
+      in
+      if !has_return = false
+      then (
+        final_block_jumps := !final_block_jumps + 1;
+        let _ = Llvm.build_br final_block builder in
+        ())
+      else ()
     in
-    List.iter gen_cond_block if_expr.then_block;
-    let _ = Llvm.build_br final_block builder in
+    gen_code_block cond_block;
+    (* let _ = List.map codegen_expr cond_block in *)
+    (* let _ = Llvm.build_br final_block builder in *)
     (* generate else block or define as unreachable *)
     Llvm.position_at_end else_block builder;
-    let _ =
-      match if_expr.else_block with
-      | Some exprs ->
-        List.iter gen_cond_block exprs;
-        Llvm.build_br final_block builder
-      | None -> Llvm.build_unreachable builder
-    in
-    Llvm.position_at_end final_block builder;
-    (match ret_ty with
-     | Ast.TVoid -> return
-     | _ -> Llvm.build_load (map_type_def ret_ty loc) return "" builder)
+    (match if_expr.else_block with
+     | Some exprs -> gen_code_block exprs
+     | None ->
+       let _ = Llvm.build_unreachable builder in
+       ());
+    if !final_block_jumps = 0
+    then (
+      Llvm.delete_block final_block;
+      Llvm.const_null i32_type)
+    else (
+      Llvm.position_at_end final_block builder;
+      match ret_ty with
+      | Ast.TVoid -> return
+      | _ -> Llvm.build_load (map_type_def ret_ty loc) return "" builder)
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)
@@ -462,7 +499,7 @@ and codegen_fn fndef loc =
       | Ast.TVoid -> Llvm.build_ret_void builder
       | _ ->
         (match !ret_val with
-         | Some r -> Llvm.build_ret r builder
+         | Some r -> r
          | None -> raise (CodegenError (ReturnType, loc)))
     in
     Llvm_analysis.assert_valid_function fn;

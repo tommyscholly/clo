@@ -45,9 +45,8 @@ type expr =
   | If of if_expr * loc
 
 and if_expr =
-  { ifcond : expr
-  ; has_return : type_expr option
-  ; then_block : expr list
+  { has_return : type_expr option
+  ; cond_blocks : expr * expr list (* ; then_block : expr list *)
   ; else_block : expr list option
   }
 
@@ -646,35 +645,36 @@ let rec typed_expr (e : Ast.expr) =
            ; loc
            });
     Assignment ({ aslhs = var_name; asrhs = texpr; asty = ty }, loc)
-  | If (cond, then_block, else_block, loc) ->
-    let cond = typed_expr cond in
-    let cond_ty = type_of cond in
-    if cond_ty <> Ast.TBool
-    then
-      raise
-        (TypeError
-           { kind = TETypeMismatch None
-           ; msg =
-               Some
-                 (Format.sprintf
-                    "Condition should be of type bool, is type %s"
-                    (string_of_type cond_ty))
-           ; loc
-           });
+  | If ((cond, block), else_block, loc) ->
     let has_return = ref None in
-    let then_block =
-      List.map
-        (fun e ->
-          let texpr = typed_expr e in
-          (match texpr with
-           | Return (_, ty, _) -> has_return := Some ty
-           | _ -> ());
-          texpr)
-        then_block
+    let conds =
+      let cond = typed_expr cond in
+      let cond_ty = type_of cond in
+      if cond_ty <> Ast.TBool
+      then
+        raise
+          (TypeError
+             { kind = TETypeMismatch None
+             ; msg =
+                 Some
+                   (Format.sprintf
+                      "Condition should be of type bool, is type %s"
+                      (string_of_type cond_ty))
+             ; loc
+             });
+      ( cond
+      , List.map
+          (fun e ->
+            let texpr = typed_expr e in
+            (match texpr with
+             | Return (_, ty, _) -> has_return := Some ty
+             | _ -> ());
+            texpr)
+          block )
     in
     let else_block = Option.map (List.map typed_expr) else_block in
     let has_return = !has_return in
-    If ({ ifcond = cond; then_block; else_block; has_return }, loc)
+    If ({ cond_blocks = conds; else_block; has_return }, loc)
 
 and map_fields fields name loc =
   let struct_field_tbl =

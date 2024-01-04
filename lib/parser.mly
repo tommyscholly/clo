@@ -79,7 +79,6 @@ args:
 
 semi_terminated:
     | e=expr; SEMICOLON { e }
-    | iff=if_expr; { If iff }
     ;
 
 block_expr:
@@ -164,12 +163,14 @@ match_statement:
     ;
 
 if_expr:
-    | IF; cond=expr; then_block=block_expr; else_block=option(else_statement) { (cond, then_block, else_block, ($startpos, $endpos)) }
+    | conditions=cond_block; else_block=option(else_statement) { (conditions, else_block, ($startpos, $endpos)) }
     ;
 
+cond_block:
+    | IF; cond=expr; then_block=block_expr { (cond, then_block) }
+
 else_statement:
-    | ELSE; else_block=block_expr { ElseBlock else_block }
-    | ELSE; else_if=if_expr { ElseIfBlock else_if }
+    | ELSE; else_block=block_expr { else_block }
     ;
 
 expr:
@@ -188,6 +189,7 @@ expr:
     | id=IDENT; EQUAL; e=expr { Assignment (id, e, ($startpos, $endpos)) }
     | i=INT { Int i }
     | f=FLOAT { Float f }
+    | iff=if_expr; { If iff }
     | TRUE { Bool true }
     | FALSE { Bool false }
     | RETURN; e=expr { Return (e, ($startpos, $endpos)) }

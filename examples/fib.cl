@@ -1,14 +1,18 @@
 fn fib(i: int) -> int {
-    print("here");
     if i == 1 {
         return 1;
-    }
-
-    return i;
+    } else {
+        if i == 0 {
+            return 0;
+        } else {
+            let fib1 = fib(i - 1);
+            let fib2 = fib(i - 2);
+            let result = fib1 + fib2;
+            return result;
+        };
+    };
 }
 
 fn main() {
-    let fib_result = fib(4);
-    print("%d\n", fib_result);
-    print("here2");
+    print("%d\n", fib(10));
 }

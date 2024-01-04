@@ -59,11 +59,7 @@ type expr =
   | Assignment of string * expr * loc (* ident = expr *)
   | If of if_expr
 
-and if_expr = expr * expr list * else_expr option * loc
-
-and else_expr = 
-  | ElseBlock of expr list | ElseIfBlock of if_expr
-
+and if_expr = (expr * expr list) * expr list option * loc
 and fndef = string * param list * type_expr option * expr list
 and construct_field = string * expr * loc
 

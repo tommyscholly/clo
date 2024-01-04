@@ -1,0 +1,55 @@
+; ModuleID = 'here
+here
+jit'
+source_filename = "jit"
+
+@string_0 = private unnamed_addr constant [6 x i8] c"here\0A\00", align 1
+@string_1 = private unnamed_addr constant [15 x i8] c"fib1 (%d:%d) \0A\00", align 1
+@string_2 = private unnamed_addr constant [15 x i8] c"fib2 (%d:%d) \0A\00", align 1
+@string_3 = private unnamed_addr constant [18 x i8] c"result: (%d:%d) \0A\00", align 1
+
+declare void @printf(ptr %0, ...)
+
+define i32 @fib(i32 %i) {
+entry:
+  %eq = icmp eq i32 %i, 1
+  %ifreturn = alloca i32, align 4
+  br i1 %eq, label %then_block, label %else_block
+
+then_block:                                       ; preds = %entry
+  ret i32 1
+
+else_block:                                       ; preds = %entry
+  %eq1 = icmp eq i32 %i, 0
+  %ifreturn5 = alloca i32, align 4
+  br i1 %eq1, label %then_block2, label %else_block3
+
+then_block2:                                      ; preds = %else_block
+  call void (ptr, ...) @printf(ptr @string_0)
+  ret i32 0
+
+else_block3:                                      ; preds = %else_block
+  %sub = sub i32 %i, 1
+  %calltmp = call i32 @fib(i32 %sub)
+  %fib1 = alloca i32, align 4
+  store i32 %calltmp, ptr %fib1, align 4
+  %fib16 = load i32, ptr %fib1, align 4
+  call void (ptr, ...) @printf(ptr @string_1, i32 %i, i32 %fib16)
+  %sub7 = sub i32 %i, 2
+  %calltmp8 = call i32 @fib(i32 %sub7)
+  %fib2 = alloca i32, align 4
+  store i32 %calltmp8, ptr %fib2, align 4
+  %fib29 = load i32, ptr %fib2, align 4
+  call void (ptr, ...) @printf(ptr @string_2, i32 %i, i32 %fib29)
+  %0 = load i32, ptr %fib2, align 4
+  %1 = load i32, ptr %fib1, align 4
+  %add = add i32 %1, %0
+  %result = alloca i32, align 4
+  store i32 %add, ptr %result, align 4
+  %result10 = load i32, ptr %result, align 4
+  call void (ptr, ...) @printf(ptr @string_3, i32 %i, i32 %result10)
+  ret ptr %result
+}
+Function return type does not match operand type of return inst!
+  ret ptr %result
+ i32LLVM ERROR: Broken function found, compilation aborted!
