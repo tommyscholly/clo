@@ -16,6 +16,7 @@ type type_error_kind =
   | TEEnumVariantNonExistant
   | TEMatchInType
   | TEAssign
+  | TEArraySize
 (* this needs to hold a 'loc list' that points to every return type location *)
 
 exception
@@ -44,11 +45,25 @@ type expr =
   | Assignment of assignment_expr * loc
   | If of if_expr * loc
   | For of for_expr * loc
+  | Array of array_expr * loc
+  | Index of index_expr * loc
+
+and index_expr =
+  { ivar : expr (* this will always be of type Variable *)
+  ; ity : type_expr
+  ; iidx : expr (* can index with ints or variables that are ints *)
+  }
+
+and array_expr =
+  { asize : int
+  ; aelements : expr list
+  ; aty : type_expr
+  }
 
 and for_expr =
   { fident : string
   ; fkind : for_kind
-  ; fty: type_expr
+  ; fty : type_expr
   ; fblock : expr list
   }
 
@@ -194,13 +209,14 @@ let variant_name_to_idx : (string, (string, int) Hashtbl.t) Hashtbl.t =
   Hashtbl.create 10 (* enum name -> (variant name, int) hashtbl *)
 ;;
 
-let size_of = function
+let rec size_of = function
   | Ast.TInt -> 32
   | Ast.TBool -> 8
   | Ast.TFloat -> 64
   | Ast.TStr -> 32 (* ptr *)
   | Ast.TCustom _ -> 32 (* ptr *)
   | Ast.TVoid -> 0
+  | Ast.TArray (ty, size) -> size_of ty * size
 ;;
 
 let rec struct_size ?(sum = 0) fields =
@@ -238,6 +254,8 @@ let type_of = function
   | FieldAccess (faccess, _) -> faccess.ffieldtype
   | Match (m, _) -> m.mty
   | Assignment (a, _) -> a.asty
+  | Array (ar, _) -> ar.aty
+  | Index (id, _) -> id.ity
 ;;
 
 let typecheck_field field_name struct_name fieldty loc =
@@ -695,7 +713,37 @@ let rec typed_expr (e : Ast.expr) =
     let fident, fkind, fty = map_for_ty for_ty in
     Hashtbl.add bound_variables fident (false, fty);
     let fblock = List.map typed_expr exprs in
-    For ({ fkind; fblock; fident ; fty }, loc)
+    For ({ fkind; fblock; fident; fty }, loc)
+  | Array (size, exprs, loc) ->
+    if size < List.length exprs
+    then raise (TypeError { kind = TEArraySize; msg = None; loc })
+    else ();
+    let aelements = List.map typed_expr exprs in
+    let atys = List.map type_of aelements in
+    let aty = List.hd atys in
+    List.iter
+      (fun ty ->
+        if aty = ty
+        then ()
+        else raise (TypeError { kind = TETypeMismatch None; msg = None; loc }))
+      atys;
+    let aty = Ast.TArray (aty, size) in
+    Array ({ asize = size; aelements; aty }, loc)
+  | Index (ident, idx, loc) ->
+    let _, var_type =
+      try Hashtbl.find bound_variables ident with
+      | Not_found -> raise (TypeError { kind = TEVariableNotBound; msg = None; loc })
+    in
+    let idx = typed_expr idx in
+    let idx_ty = type_of idx in
+    (match idx_ty with
+     | Ast.TInt -> ()
+     | _ -> raise (TypeError { kind = TETypeMismatch None; msg = None; loc }));
+    (* the idx_ty is the type of the index, which needs to resolve to an int
+       however, the type of the actual index operation needs to be the type of the variable being indexed
+    *)
+    (* this loc here is technically wrong *)
+    Index ({ iidx = idx; ivar = Variable (ident, var_type, loc); ity = var_type }, loc)
 
 and map_fields fields name loc =
   let struct_field_tbl =

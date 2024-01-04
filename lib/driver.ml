@@ -71,6 +71,13 @@ let typed file_contents e =
   | Typed_ast.TypeError te ->
     let _ =
       match te.kind with
+      | TEArraySize ->
+        Reporting.Renderer.render_error
+          file_contents
+          "Array size is less than the number of elements provided"
+          te.loc
+          te.msg
+          None
       | TEAssign ->
         Reporting.Renderer.render_error
           file_contents

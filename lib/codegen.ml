@@ -27,11 +27,12 @@ let struct_type = Llvm.struct_type context
 let named_struct_type = Llvm.named_struct_type context
 let strings = ref 0
 
-let map_type_def ty loc =
+let rec map_type_def ty loc =
   match ty with
   | Ast.TInt -> i32_type
   | Ast.TVoid -> void_type
   | Ast.TBool -> i1_type
+  | Ast.TArray (ty, _) -> map_type_def ty loc
   | Ast.TCustom name ->
     (match Llvm.type_by_name llvm_module name with
      (* | Some ty -> ty *)
@@ -135,6 +136,7 @@ let rec codegen_expr = function
     let var =
       match let_expr.ltype with
       | Ast.TCustom _ -> bound_expr
+      | Ast.TArray _ -> bound_expr
       | _ ->
         let alloc_type = map_type_def let_expr.ltype loc in
         let var = Llvm.build_alloca alloc_type let_expr.lname builder in
@@ -449,7 +451,7 @@ let rec codegen_expr = function
     let current_block = Llvm.insertion_block builder in
     let parent_fn = Llvm.block_parent current_block in
     let top_block = Llvm.append_block context "for_top" parent_fn in
-    let bottom_block = Llvm.append_block context "bottom_block" parent_fn in
+    let bottom_block = Llvm.append_block context "for_bottom" parent_fn in
     let iter_ty = map_type_def for_expr.fty loc in
     let iterator = Llvm.build_alloca iter_ty for_expr.fident builder in
     Hashtbl.add named_values for_expr.fident iterator;
@@ -471,6 +473,28 @@ let rec codegen_expr = function
        ());
     Llvm.position_at_end bottom_block builder;
     Llvm.const_null i32_type
+  | Array (arr_expr, loc) ->
+    let aty = map_type_def arr_expr.aty loc in
+    let arr_ty = Llvm.array_type aty arr_expr.asize in
+    let arr_alloc = Llvm.build_alloca arr_ty "array" builder in
+    List.iteri
+      (fun i e ->
+        let e = codegen_expr e in
+        let load = try_load arr_expr.aty loc e in
+        let idx = Llvm.const_int i32_type i in
+        let gep = Llvm.build_gep aty arr_alloc [| idx |] "" builder in
+        let _ = Llvm.build_store load gep builder in
+        ())
+      arr_expr.aelements;
+    arr_alloc
+  | Index (inde_expr, loc) ->
+    let ty = map_type_def inde_expr.ity loc in
+    let indexed_value = codegen_expr inde_expr.ivar in
+    let idx = codegen_expr inde_expr.iidx in
+    let idx = try_load inde_expr.ity loc idx in
+    let gep = Llvm.build_gep ty indexed_value [| idx |] "" builder in
+    let load = Llvm.build_load ty gep "indexed_value" builder in
+    load
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)

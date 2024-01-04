@@ -56,6 +56,10 @@ fn main() {
     matcher(other);
     var2 = 2;
     test(var);
+    // this is a comment
+    for i in 1..10 {
+        print("%d\n", i);
+    };
     print("%d : %d\n", var.field, var2);
     print("add result: %d\n", adder(var.field, var2));
 }

@@ -20,6 +20,8 @@
 %token RPAREN
 %token LBRACE
 %token RBRACE
+%token LBRACKET
+%token RBRACKET
 %token COMMA
 %token ARROW
 %token COLON
@@ -184,6 +186,14 @@ for_expr:
     | FOR; id=IDENT; IN; range=range_expr; { ForInRange (id, range) }
     ;
 
+array_expr:
+    | LBRACKET; size=INT; RBRACKET; LBRACE; items=separated_list(COMMA, expr); RBRACE { Array (size, items, ($startpos, $endpos)) }
+    ;
+
+index:
+    | id=IDENT; LBRACKET; idx=expr; RBRACKET { Index (id, idx, ($startpos, $endpos)) }
+    ;
+
 expr:
     | LPAREN; e=expr RPAREN {e}
     | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, ($startpos, $endpos)) }
@@ -195,6 +205,8 @@ expr:
     | enum_def=enum_defn { enum_def }
     | sc=struct_construct { sc }
     | ec=enum_construct { ec }
+    | arr=array_expr { arr }
+    | idx=index { idx }
     | fore=for_expr; exprs=block_expr { For (fore, exprs, ($startpos, $endpos)) }
     | m = match_statement { m }
     | id=IDENT { Variable (id, ($startpos, $endpos)) }

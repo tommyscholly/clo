@@ -17,14 +17,16 @@ type type_expr =
   | TStr
   | TVoid
   | TBool
+  | TArray of type_expr * int
   | TCustom of string
 
-let string_of_type = function
+let rec string_of_type = function
   | TInt -> "int"
   | TFloat -> "float"
   | TStr -> "str"
   | TVoid -> "void"
   | TBool -> "bool"
+  | TArray (ty, _) -> Format.sprintf "array<%s>" (string_of_type ty)
   | TCustom s -> s
 ;;
 
@@ -60,9 +62,10 @@ type expr =
   | Assignment of string * expr * loc (* ident = expr *)
   | If of if_expr
   | For of for_type * expr list * loc
+  | Array of int * expr list * loc (* size, items *)
+  | Index of string * expr * loc (* identifier, idx *)
 
-and for_type = ForInRange of string * range 
-
+and for_type = ForInRange of string * range
 and if_expr = (expr * expr list) * expr list option * loc
 and fndef = string * param list * type_expr option * expr list
 and construct_field = string * expr * loc

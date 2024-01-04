@@ -14,6 +14,7 @@ fn fib(i: int) -> int {
 }
 
 fn main() {
+    // trivial iterative for loop
     for i in 1..10 {
         print("%d\n", fib(i));
     };

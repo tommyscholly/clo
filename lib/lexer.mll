@@ -27,6 +27,8 @@ rule read =
   | newline  { next_line lexbuf; read lexbuf }
   | float    { FLOAT (float_of_string (Lexing.lexeme lexbuf)) }
   | int      { INT (int_of_string (Lexing.lexeme lexbuf)) }
+  | "//"     { read_single_line_comment lexbuf (* use our comment rule for rest of line *) }
+  | "/*"     { read_multi_line_comment lexbuf }
   | "fn"     { FN }
   | "let"    { LET }
   | "print"  { PRINT }
@@ -55,6 +57,8 @@ rule read =
   | ')'      { RPAREN }
   | '{'      { LBRACE }
   | '}'      { RBRACE }
+  | '['      { LBRACKET }
+  | ']'      { RBRACKET }
   | '|'      { PIPE }
   | '_'      { UNDERSCORE }
   | ','      { COMMA }
@@ -66,6 +70,17 @@ rule read =
   | id       { IDENT (Lexing.lexeme lexbuf) }
   | _        { raise ( SyntaxError ("Unexpected char: " ^ Lexing.lexeme lexbuf)) }
   | eof      { EOF }
+and read_single_line_comment = parse
+  | newline { next_line lexbuf; read lexbuf }
+  | eof { EOF }
+  | _ { read_single_line_comment lexbuf }
+
+and read_multi_line_comment = parse
+  | "*/" { read lexbuf }
+  | newline { next_line lexbuf; read_multi_line_comment lexbuf }
+  | eof { raise (SyntaxError ("Lexer - Unexpected EOF - please terminate your comment.")) }
+  | _ { read_multi_line_comment lexbuf }
+
 and read_string buf = parse
   | '"'       { STRING (Buffer.contents buf) }
   | '\\' '/'  { Buffer.add_char buf '/'; read_string buf lexbuf }
