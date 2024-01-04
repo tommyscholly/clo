@@ -34,6 +34,9 @@
 %token MUT
 %token IF
 %token ELSE
+%token FOR
+%token IN
+%token DOTDOT
 
 %token STRUCT
 %token ENUM
@@ -173,6 +176,14 @@ else_statement:
     | ELSE; else_block=block_expr { else_block }
     ;
 
+range_expr:
+    | start=INT; DOTDOT; end=INT { (start, end) }
+    ;
+
+for_expr:
+    | FOR; id=IDENT; IN; range=range_expr { ForInRange (id, range) }
+    ;
+
 expr:
     | LPAREN; e=expr RPAREN {e}
     | lhs=expr; op=bin_op; rhs=expr { Binop (op, lhs, rhs, ($startpos, $endpos)) }
@@ -184,6 +195,7 @@ expr:
     | enum_def=enum_defn { enum_def }
     | sc=struct_construct { sc }
     | ec=enum_construct { ec }
+    | fore=for_expr { For (fore, ($startpos, $endpos)) }
     | m = match_statement { m }
     | id=IDENT { Variable (id, ($startpos, $endpos)) }
     | id=IDENT; EQUAL; e=expr { Assignment (id, e, ($startpos, $endpos)) }

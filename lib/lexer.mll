@@ -43,6 +43,9 @@ rule read =
   | "mut"    { MUT }
   | "if"     { IF }
   | "else"   { ELSE }
+  | "for"    { FOR }
+  | "in"     { IN }
+  | ".."     { DOTDOT }
   | "->"     { ARROW }
   | "=="     { EQUALEQUAL }
   | '+'      { PLUS }
