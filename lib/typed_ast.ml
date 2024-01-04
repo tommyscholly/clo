@@ -47,6 +47,7 @@ type expr =
   | For of for_expr * loc
   | Array of array_expr * loc
   | Index of index_expr * loc
+  | Break of loc
 
 and index_expr =
   { ivar : expr (* this will always be of type Variable *)
@@ -246,6 +247,7 @@ let type_of = function
   | TypeDef (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
   | If (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
   | For (_, loc) -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
+  | Break loc -> raise (TypeError { kind = TETypeDefAsValue; loc; msg = None })
   | Variable (_, ty, _) -> ty
   | Let (l, _) -> l.ltype
   | Call (c, _) -> c.ctype
@@ -744,6 +746,7 @@ let rec typed_expr (e : Ast.expr) =
     *)
     (* this loc here is technically wrong *)
     Index ({ iidx = idx; ivar = Variable (ident, var_type, loc); ity = var_type }, loc)
+  | Break loc -> Break loc
 
 and map_fields fields name loc =
   let struct_field_tbl =

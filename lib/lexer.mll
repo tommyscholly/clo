@@ -47,6 +47,7 @@ rule read =
   | "else"   { ELSE }
   | "for"    { FOR }
   | "in"     { IN }
+  | "break"  { BREAK }
   | ".."     { DOTDOT }
   | "->"     { ARROW }
   | "=="     { EQUALEQUAL }

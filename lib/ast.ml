@@ -64,6 +64,7 @@ type expr =
   | For of for_type * expr list * loc
   | Array of int * expr list * loc (* size, items *)
   | Index of string * expr * loc (* identifier, idx *)
+  | Break of loc
 
 and for_type = ForInRange of string * range
 and if_expr = (expr * expr list) * expr list option * loc

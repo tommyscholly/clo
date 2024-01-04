@@ -38,6 +38,7 @@
 %token ELSE
 %token FOR
 %token IN
+%token BREAK
 %token DOTDOT
 
 %token STRUCT
@@ -218,6 +219,7 @@ expr:
     | FALSE { Bool false }
     | RETURN; e=expr { Return (e, ($startpos, $endpos)) }
     | struct_name=IDENT; DOT; field_name=IDENT { FieldAccess (struct_name, field_name, ($startpos, $endpos)) }
+    | BREAK; { Break (($startpos, $endpos)) }
     ;
 
 

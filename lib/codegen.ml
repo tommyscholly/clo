@@ -493,8 +493,14 @@ let rec codegen_expr = function
     let idx = codegen_expr inde_expr.iidx in
     let idx = try_load inde_expr.ity loc idx in
     let gep = Llvm.build_gep ty indexed_value [| idx |] "" builder in
-    let load = Llvm.build_load ty gep "indexed_value" builder in
-    load
+    Llvm.build_load ty gep "indexed_value" builder
+    (* breaks are handled inside loop gen *)
+  | Break _ ->
+    let parent_fn = Llvm.block_parent (Llvm.insertion_block builder) in
+    let blocks = Llvm.basic_blocks parent_fn in
+    (* last block should always be the final block for the loop *)
+    let last_block = Array.get blocks (Array.length blocks - 1) in
+    Llvm.build_br last_block builder
 
 and codegen_fn fndef loc =
   (* Hashtbl.clear named_values; *)
