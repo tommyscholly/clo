@@ -17,6 +17,7 @@ type type_error_kind =
   | TEMatchInType
   | TEAssign
   | TEArraySize
+  | TEStatementAfterBreak
 (* this needs to hold a 'loc list' that points to every return type location *)
 
 exception
@@ -379,7 +380,7 @@ let rec typed_expr (e : Ast.expr) =
       | Some d ->
         (match d with
          | Ast.UnionVariant es ->
-           let texprs = List.map typed_expr es in
+           let texprs = map_block es in
            Some (UnionData texprs)
          | Ast.StructVariant fields ->
            Some (StructData (map_fields fields (ename ^ ":" ^ evariant) loc)))
@@ -520,7 +521,7 @@ let rec typed_expr (e : Ast.expr) =
     let dummy_fndef = { fnname; fnparams; fnret; fnexprs = [] } in
     (* we add a dummy fndef into defined functions so recursive calls can see it *)
     Hashtbl.add defined_functions fnname dummy_fndef;
-    let fnexprs = List.map typed_expr fnexprs in
+    let fnexprs = map_block fnexprs in
     (* list of types of all the returns in the function *)
     (* need to extract the locations as well for better error reporting *)
     let returns =
@@ -677,8 +678,7 @@ let rec typed_expr (e : Ast.expr) =
            });
     Assignment ({ aslhs = var_name; asrhs = texpr; asty = ty }, loc)
   | If ((cond, block), else_block, loc) ->
-    let has_return = ref None in
-    let conds =
+    let cond, conds =
       let cond = typed_expr cond in
       let cond_ty = type_of cond in
       if cond_ty <> Ast.TBool
@@ -693,19 +693,18 @@ let rec typed_expr (e : Ast.expr) =
                       (string_of_type cond_ty))
              ; loc
              });
-      ( cond
-      , List.map
-          (fun e ->
-            let texpr = typed_expr e in
-            (match texpr with
-             | Return (_, ty, _) -> has_return := Some ty
-             | _ -> ());
-            texpr)
-          block )
+      cond, map_block block
     in
-    let else_block = Option.map (List.map typed_expr) else_block in
+    let has_return = ref None in
+    List.iter
+      (fun e ->
+        match e with
+        | Return (_, ty, _) -> has_return := Some ty
+        | _ -> ())
+      conds;
+    let else_block = Option.map map_block else_block in
     let has_return = !has_return in
-    If ({ cond_blocks = conds; else_block; has_return }, loc)
+    If ({ cond_blocks = cond, conds; else_block; has_return }, loc)
   | For (for_ty, exprs, loc) ->
     let map_for_ty = function
       | Ast.ForInRange (for_id, range) ->
@@ -714,7 +713,7 @@ let rec typed_expr (e : Ast.expr) =
     in
     let fident, fkind, fty = map_for_ty for_ty in
     Hashtbl.add bound_variables fident (false, fty);
-    let fblock = List.map typed_expr exprs in
+    let fblock = map_block exprs in
     For ({ fkind; fblock; fident; fty }, loc)
   | Array (size, exprs, loc) ->
     if size < List.length exprs
@@ -772,4 +771,17 @@ and map_fields fields name loc =
       Array.set mapped_fields idx (expr, field_loc))
     fields;
   mapped_fields
+
+and map_block block =
+  let mapped_block = List.map typed_expr block in
+  List.iteri
+    (fun i e ->
+      match e with
+      | Break loc | Return (_, _, loc) ->
+        if i <> List.length mapped_block - 1
+        then raise (TypeError { kind = TEStatementAfterBreak; loc; msg = None })
+        else ()
+      | _ -> ())
+    mapped_block;
+  mapped_block
 ;;

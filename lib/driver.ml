@@ -71,6 +71,13 @@ let typed file_contents e =
   | Typed_ast.TypeError te ->
     let _ =
       match te.kind with
+      | TEStatementAfterBreak ->
+        Reporting.Renderer.render_error
+          file_contents
+          "There is a statement after a jump instruction"
+          te.loc
+          te.msg
+          None
       | TEArraySize ->
         Reporting.Renderer.render_error
           file_contents
